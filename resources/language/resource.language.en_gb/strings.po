@@ -1,0 +1,61 @@
+# Kodi Media Center language file
+# Addon Name: "Comedy Central"
+# Addon id: plugin.video.cc.com
+# Addon Provider: nixxo
+msgid ""
+msgstr ""
+"Project-Id-Version: plugin.video.cc.com\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Lunatixz Translation Team\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#30000"
+msgid "General"
+msgstr ""
+
+msgctxt "#30001"
+msgid "Enable Debugging [Log errors]"
+msgstr ""
+
+msgctxt "#30002"
+msgid "Select Preferred Quality"
+msgstr ""
+
+msgctxt "#30003"
+msgid "Something went wrong, Try again..."
+msgstr ""
+
+msgctxt "#30004"
+msgid "No json data found, check log."
+msgstr ""
+
+msgctxt "#30005"
+msgid "Url not supported, check log."
+msgstr ""
+
+msgctxt "#30006"
+msgid "Video not available."
+msgstr ""
+
+msgctxt "#31000"
+msgid "Shows"
+msgstr ""
+
+msgctxt "#31001"
+msgid "Standup"
+msgstr ""
+
+msgctxt "#31002"
+msgid "Digital Originals"
+msgstr ""
+
+msgctxt "#31005"
+msgid "Load More"
+msgstr ""
+

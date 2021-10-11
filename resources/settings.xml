@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="30000">
+        <setting id="Debug" type="bool" label="30001" default="false" />
+        <setting id="Quality" type="enum" label="30002" default="4" values="360p|540p|720p|1080p|Highest Available" />
+    </category>
+</settings>

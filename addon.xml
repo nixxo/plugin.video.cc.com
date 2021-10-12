@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.cc.com" version="0.0.1" name="Comedy Central" provider-name="nixxo">
+<addon id="plugin.video.cc.com" version="0.0.2" name="Comedy Central" provider-name="nixxo">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
         <import addon="script.module.simplecache" version="1.0.0"/>
@@ -15,7 +15,11 @@
         <license>GNU GENERAL PUBLIC LICENSE. Version 3, June 2007</license>
         <source>https://github.com/nixxo/plugin.video.cc.com</source>
         <website>https://www.cc.com/</website>
-        <news>[B]v0.0.1[/B]
+        <news>[B]v0.0.2[/B]
+- playlist index fix
+- strptime workaround
+
+[B]v0.0.1[/B]
 - first release</news>
         <assets>
             <icon>resources/icon.png</icon>

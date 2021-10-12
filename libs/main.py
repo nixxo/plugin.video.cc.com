@@ -68,7 +68,7 @@ class ComedyCentral(object):
                         label=item['label'], path=item['url'],
                         videoInfo=item['videoInfos'], subs=item['subs'],
                         isFolder=False)
-                    if vidIDX == 1:
+                    if vidIDX == 0:
                         addonutils.setResolvedUrl(item=liz, exit=False)
                     plst.add(item['url'], liz, vidIDX)
                 plst.unshuffle()

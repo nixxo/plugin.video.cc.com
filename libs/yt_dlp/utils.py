@@ -3216,7 +3216,13 @@ def datetime_from_str(date_str, precision='auto', format='%Y%m%d'):
             return datetime_round(new_date, unit)
         return new_date
 
-    return datetime_round(datetime.datetime.strptime(date_str, format), precision)
+    try:
+        dt = datetime.datetime.strptime(date_str, format)
+    except:
+        # workaround for strptime not working
+        dt = datetime.datetime.fromtimestamp(
+            time.mktime(time.strptime(date_str, format)))
+    return datetime_round(dt, precision)
 
 
 def date_from_str(date_str, format='%Y%m%d'):

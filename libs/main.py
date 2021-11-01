@@ -5,8 +5,11 @@ import xbmc
 
 
 class ComedyCentral(object):
-    def __init__(self):
-        self.cc = CC()  
+    LISTITEM = {}
+
+    def __init__(self, listitem=None):
+        self.LISTITEM = listitem
+        self.cc = CC(listitem)
 
     def addItems(self, items):
         episodes = False
@@ -58,10 +61,12 @@ class ComedyCentral(object):
                 if self.cc.PTVL_RUNNING:
                     return addonutils.notify(addonutils.LANGUAGE(30007))
                 playItems = self.cc.getMediaUrl(
-                    params['name'], params['url'], params.get('mgid'))
+                    params['name'], params['url'],
+                    params.get('mgid'), self.LISTITEM)
                 plst = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
                 plst.clear()
                 xbmc.sleep(200)
+
                 for item in playItems:
                     vidIDX = item['idx']
                     liz = addonutils.createListItem(

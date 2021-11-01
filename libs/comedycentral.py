@@ -40,21 +40,22 @@ class CC(object):
             'mode': 'GENERIC',
             'name': addonutils.LANGUAGE(31002),
         },
-    },
-    ]
+    }]
     PAGES_CRUMB = ['topic', 'collections', 'shows']
     BASE_MGID = 'mgid:arc:video:comedycentral.com:'
 
-    def __init__(self):
-        self.log('__init__')
+    def __init__(self, listitem=None):
+        self._log('__init__')
         self.cache = SimpleCache()
 
-    def log(self, msg, level=0):
-        if level >= self.LOGLEVEL:
+    def _log(self, msg, level=0):
+        if self.DEBUG:
+            addonutils.log(msg, 3)
+        elif level >= self.LOGLEVEL:
             addonutils.log(msg, level)
 
-    def openURL(self, url):
-        self.log('openURL, url = %s' % url, 1)
+    def _openURL(self, url, hours=24):
+        self._log('_openURL, url = %s' % url, 1)
         try:
             cacheresponse = self.cache.get(
                 '%s.openURL, url = %s' % (addonutils.ID, url))
@@ -64,14 +65,14 @@ class CC(object):
                 self.cache.set(
                     '%s.openURL, url = %s' % (addonutils.ID, url),
                     response,
-                    expiration=datetime.timedelta(days=1))
+                    expiration=datetime.timedelta(hours=hours))
             return self.cache.get('%s.openURL, url = %s' % (addonutils.ID, url))
         except Exception as e:
-            self.log("openURL Failed! " + str(e), 3)
-            addonutils.notify(addonutils.LANGUAGE(30003))
+            self._log("_openURL Failed! " + str(e), 3)
+            addonutils.notify(addonutils.LANGUAGE(30007))
             addonutils.endScript()
 
-    def createURL(self, url, fix=False):
+    def _createURL(self, url, fix=False):
         if fix:
             # sometimes cc.com f**ks-up the url
             url = url.replace('/episode/', '/episodes/')
@@ -80,8 +81,19 @@ class CC(object):
             return url
         return self.BASE_URL + url
 
-    def createInfoArt(self, image=False, fanart=False):
-        self.log('createInfoArt, image = %s; fanart = %s' % (str(image), str(fanart)), 1)
+    def _createInfoArt(self, image=False, fanart=False):
+        """
+        Create infoart list from provided image url, if provided.
+        
+        :param      image:   image url
+        :type       image:   str
+        :param      fanart:  generate fanart from image url
+        :type       fanart:  bool
+        
+        :returns:   infoart
+        :rtype:     list
+        """
+        self._log('_createInfoArt, image = %s; fanart = %s' % (str(image), str(fanart)), 1)
         thumb = image + '&width=512&crop=false' if image else None
         return {
             'thumb': thumb,
@@ -91,62 +103,111 @@ class CC(object):
             'logo': self.ICON
         }
 
-    def loadJsonData(self, url):
-        self.log('loadJsonData, url = %s' % url, 1)
-        response = self.openURL(url)
+    def _loadJsonData(self, url, hours=24):
+        """
+        Extract the JSON data from the provided url.
+        Checks if the url contain html or json
+        
+        :param      url:    The url with the data to extract
+        :type       url:    str
+        :param      hours:  cache retention duration
+        :type       hours:  int
+        
+        :returns:   Json data extarcted
+        :rtype:     json
+        """
+        self._log('_loadJsonData, url = %s' % url, 1)
+        response = self._openURL(url, hours=hours)
         if len(response) == 0:
             return
         response = response.decode('utf-8')
 
         try:
-            # try if the file is json
+            # check if the file is json
             items = json.loads(response)
         except:
             # file is html
             try:
-                src = re.search('window\\.__DATA__\\s*=\\s*(.+?);\\s*window\\.__PUSH_STATE__', response).group(1)
+                src = re.search('__DATA__\\s*=\\s*(.+?);\\s*window\\.__PUSH_STATE__', response).group(1)
                 items = json.loads(src)
             except Exception as e:
                 addonutils.notify(addonutils.LANGUAGE(30004))
-                self.log('loadJsonData, NO JSON DATA FOUND' + str(e), 3)
+                self._log('_loadJsonData, NO JSON DATA FOUND' + str(e), 3)
                 addonutils.endScript()
 
         return items
 
-    def extractItemType(self, data, type, ext):
-        self.log('extractItemType, type = %s; ext = %s' % (type, ext), 1)
+    def _extractItemType(self, data, type, ext):
+        """
+        Search for element with the 'type' provided and return 'ext'
+        Eg. return the "children" element of an element with 'type' "MainContent"
+        
+        :param      data:  The data
+        :type       data:  json
+        :param      type:  'type' key to search
+        :type       type:  str
+        :param      ext:   'ext' key to extract
+        :type       ext:   str
+        
+        :returns:   extracted data
+        :rtype:     json
+        """
+        self._log('_extractItemType, type = %s; ext = %s' % (type, ext), 1)
         items = [x.get(ext) for x in data if x.get('type') == type]
         return items[0] if len(items) > 0 and isinstance(items[0], list) else items
 
-    def extractItems(self, data):
-        '''extract items from the page json'''
-        self.log('extractItems')
+    def _extractItems(self, data):
+        """
+        extract items from the json data
+        
+        :param      data:  The data
+        :type       data:  json
+        
+        :returns:   items extracted
+        :rtype:     list
+        """
+        self._log('_extractItems')
         items = []
         for item in data or []:
             if item.get('type') == 'LineList':
                 items.extend(item['props'].get('items') or [])
                 items.extend([item['props'].get('loadMore')] or [])
             if item.get('type') == 'Fragment':
-                items.extend(self.extractItems(item.get('children')) or [])
-        self.log('extractItems, items extracted = %d' % len(items), 1)
+                items.extend(self._extractItems(item.get('children')) or [])
+        self._log('_extractItems, items extracted = %d' % len(items), 1)
         return items
 
     def getMainMenu(self):
-        self.log('getMainMenu', 1)
+        """
+        Returns the main menu
+        
+        :returns:   main menu
+        :rtype:     json
+        """
+        self._log('getMainMenu', 1)
         return self.MAIN_MENU
 
     def showsList(self, url):
-        self.log('showsList, url = %s' % url, 1)
-        items = self.loadJsonData(url)
+        """
+        Generates a list of the TV Shows found at the provided url
+        
+        :param      url:  The url
+        :type       url:  str
+        
+        :returns:   listitem items
+        :rtype:     dict
+        """
+        self._log('showsList, url = %s' % url, 1)
+        items = self._loadJsonData(url)
         if 'items' in items:
             items['items'].extend([items.get('loadMore')] or [])
             items = items['items']
         else:
-            items = self.extractItemType(
+            items = self._extractItemType(
                 items.get('children') or [],
                 'MainContainer',
                 'children')
-            items = self.extractItems(items)
+            items = self._extractItems(items)
 
         for item in items:
             if 'loadingTitle' in item:
@@ -154,7 +215,7 @@ class CC(object):
                     'label': item['title'],
                     'params': {
                         'mode': 'SHOWS',
-                        'url': self.createURL(item['url'])
+                        'url': self._createURL(item['url'])
                     },
                 }
             else:
@@ -163,7 +224,7 @@ class CC(object):
                     'label': label,
                     'params': {
                         'mode': 'GENERIC',
-                        'url': self.createURL(item['url']),
+                        'url': self._createURL(item['url']),
                         'name': label,
                     },
                     'videoInfo': {
@@ -171,30 +232,43 @@ class CC(object):
                         'title': label,
                         'tvshowtitle': label,
                     },
-                    'arts': self.createInfoArt(item['media']['image']['url'], False),
+                    'arts': self._createInfoArt(item['media']['image']['url'], False),
                 }
 
     def genericList(self, name, url):
-        self.log('genericList, name = %s, url = %s' % (name, url), 1)
+        """
+        Checks the url and chooses the appropriate method to parse the content.
+        Based on the PAGES_CRUMB it yields data from the corresponding loadXXX.
+
+        loadShows
+        loadCollections (same as Topic)
+        loadTopic
+        
+        :param      name:  title of the url provided
+        :type       name:  str
+        :param      url:   url to process
+        :type       url:   str
+        """
+        self._log('genericList, name = %s, url = %s' % (name, url), 1)
         try:
             mtc = re.search(r'(/%s/)' % '/|/'.join(self.PAGES_CRUMB), url).group(1)
             name_of_method = "load%s" % mtc.strip('/').capitalize()
             method = getattr(self, name_of_method)
-            self.log('genericList, using method = %s' % str(method))
+            self._log('genericList, using method = %s' % str(method))
             yield from method(name, url)
         except:
             addonutils.notify(addonutils.LANGUAGE(30005))
-            self.log('genericList, URL not supported: %s' % url, 3)
+            self._log('genericList, URL not supported: %s' % url, 3)
             addonutils.endScript()
 
     def loadShows(self, name, url, season=False):
-        self.log('loadShows, name = %s, url = %s, season = %s' % (
+        self._log('loadShows, name = %s, url = %s, season = %s' % (
             name, url, str(season)), 1)
-        items = self.loadJsonData(url)
+        items = self._loadJsonData(url)
         if not season:
-            items = self.extractItemType(
+            items = self._extractItemType(
                 items.get('children') or [], 'MainContainer', 'children')
-            items = self.extractItemType(items, 'SeasonSelector', 'props')
+            items = self._extractItemType(items, 'SeasonSelector', 'props')
             # check if no season selector is present
             # or season selector is empty
             if len(items) == 0 or (
@@ -203,17 +277,17 @@ class CC(object):
                 yield from self.loadShows(name, url, True)
                 return
         else:
-            items = self.extractItemType(
+            items = self._extractItemType(
                 items.get('children') or [], 'MainContainer', 'children')
-            items = self.extractItemType(items, 'LineList', 'props')
-            items = self.extractItemType(items, 'video-guide', 'filters')
+            items = self._extractItemType(items, 'LineList', 'props')
+            items = self._extractItemType(items, 'video-guide', 'filters')
         
         items = items[0]['items']
         # check if there is only one item
         if len(items) == 1:
             # and load it directly
             yield from self.loadItems(
-                name, self.createURL(items[0].get('url') or url))
+                name, self._createURL(items[0].get('url') or url))
         else:
             for item in items:
                 label = item['label']
@@ -221,7 +295,7 @@ class CC(object):
                     'label': label,
                     'params': {
                         'mode': 'EPISODES' if season else 'SEASON',
-                        'url': self.createURL(item.get('url') or url),
+                        'url': self._createURL(item.get('url') or url),
                         'name': name,
                     },
                     'videoInfo': {
@@ -229,12 +303,78 @@ class CC(object):
                         'title': label,
                         'tvshowtitle': name
                     },
-                    'arts': self.createInfoArt(),
+                    'arts': self._createInfoArt(),
                 }
 
+    def loadCollections(self, name, url):
+        """ Collections page are the same as topic pages """
+        yield from self.loadTopic(name, url)
+        pass
+
+    def loadTopic(self, name, url):
+        """
+        Loads data from 'topic' pages.
+        
+        :param      name:  Title of the page
+        :type       name:  str
+        :param      url:   The url
+        :type       url:   str
+        """
+        self._log('loadTopic, name = %s, url = %s' % (name, url))
+        items = self._loadJsonData(url)
+        items = self._extractItemType(
+            items.get('children') or [],
+            'MainContainer',
+            'children')
+        items = self._extractItems(items)
+
+        for item in items:
+            if not item:
+                continue
+            if item.get('title') == 'Load More':
+                label = addonutils.LANGUAGE(31005)
+                yield {
+                    'label': label,
+                    'params': {
+                        'mode': 'EPISODES',
+                        'url': self._createURL(item['url']),
+                        'name': name,
+                    },
+                    'arts': self._createInfoArt(),
+                }
+
+            # skip non necessary elements, like ADS and others
+            if item.get('cardType') not in ['series', 'episode', 'promo']:
+                continue
+
+            # skip 'promo' items in Digital Original listing
+            # as they are duplicates of something already in the list
+            if name == addonutils.LANGUAGE(31002) and item.get('cardType') == 'promo':
+                continue
+
+            label = item['title']
+            # playable is determined by the url not being in the parsable pages
+            playable = not any(('/%s/' % x) in item['url'] for x in self.PAGES_CRUMB)
+            yield {
+                'label': label,
+                'params': {
+                    'mode': 'PLAY' if playable else 'GENERIC',
+                    'url': self._createURL(item['url'], fix=playable),
+                    'name': label,
+                    #'mgid': item.get('mgid') or item.get('id'),
+                },
+                'videoInfo': {
+                    'mediatype': 'video' if playable else 'tvshow',
+                    'title': label,
+                    'tvshowtitle': item['meta']['label'],
+                },
+                'arts': self._createInfoArt(item['media']['image']['url']),
+                'playable': playable,
+            }
+
     def loadItems(self, name, url):
-        self.log('loadItems, name = %s, url = %s' % (name, url))
-        items = self.loadJsonData(url)
+        self._log('loadItems, name = %s, url = %s' % (name, url))
+        items = self._loadJsonData(url, hours=1)
         
         for item in items.get('items') or []:
             if item.get('cardType') == 'ad':
@@ -260,7 +400,7 @@ class CC(object):
                 'label': label,
                 'params': {
                     'mode': 'PLAY',
-                    'url': self.createURL(item['url']),
+                    'url': self._createURL(item['url']),
                     'name': label,
                     'mgid': item.get('mgid') or item.get('id'),
                 },
@@ -272,7 +412,7 @@ class CC(object):
                     'season': season,
                     'episode': episode,
                 },
-                'arts': self.createInfoArt(item['media']['image']['url']),
+                'arts': self._createInfoArt(item['media']['image']['url']),
                 'playable': True,
             }
 
@@ -282,72 +422,20 @@ class CC(object):
                 'params': {
                     'mode': 'EPISODES',
                     # replace necessary to urlencode only ":"
-                    'url': self.createURL(
-                        items['loadMore']['url'].replace(':', '%3A')),
+                    'url': self._createURL(items['loadMore']['url'].replace(':', '%3A')),
                     'name': name,
                 },
                 'videoInfo': {
                     'tvshowtitle': name
                 },
-                'arts': self.createInfoArt(),
+                'arts': self._createInfoArt(),
             }
 
-    def loadCollections(self, name, url):
-        yield from self.loadTopic(name, url)
-        pass
-
-    def loadTopic(self, name, url):
-        self.log('loadTopic, name = %s, url = %s' % (name, url))
-        items = self.loadJsonData(url)
-        items = self.extractItemType(
-            items.get('children') or [],
-            'MainContainer',
-            'children')
-        items = self.extractItems(items)
-
-        for item in items:
-            if not item:
-                continue
-            if item.get('title') == 'Load More':
-                label = addonutils.LANGUAGE(31005)
-                yield {
-                    'label': label,
-                    'params': {
-                        'mode': 'EPISODES',
-                        'url': self.createURL(item['url']),
-                        'name': name,
-                    },
-                    'videoInfo': {
-                        'tvshowtitle': name
-                    },
-                    'arts': self.createInfoArt(),
-                }
-
-            if item.get('cardType') not in ['series', 'episode', 'promo']:
-                continue
-            label = item['title']
-            playable = not any(('/%s/' % x) in item['url'] for x in self.PAGES_CRUMB)
-            yield {
-                'label': label,
-                'params': {
-                    'mode': 'PLAY' if playable else 'GENERIC',
-                    'url': self.createURL(item['url'], fix=playable),
-                    'name': label,
-                },
-                'videoInfo': {
-                    'mediatype': 'video' if playable else 'tvshow',
-                    'title': label,
-                    'tvshowtitle': item['meta']['label'],
-                },
-                'arts': self.createInfoArt(item['media']['image']['url']),
-                'playable': playable,
-            }
-
-    def getMediaUrl(self, name, url, mgid=None):
+    def getMediaUrl(self, name, url, mgid=None, listitem=None):
         from libs import yt_dlp
 
-        self.log('getMediaUrl, url=%s, mgid=%s' % (url, str(mgid)))
-        self.log('yt-dlp version: %s' % yt_dlp.version.__version__)
+        self._log('getMediaUrl, url=%s, mgid=%s' % (url, str(mgid)))
+        self._log('yt-dlp version: %s' % yt_dlp.version.__version__)
         if mgid and not mgid.startswith('mgid'):
             mgid = self.BASE_MGID + mgid
         ydl = yt_dlp.YoutubeDL({
@@ -357,11 +445,11 @@ class CC(object):
         info = ydl.extract_info(mgid or url)
         if info is None:
             addonutils.notify(addonutils.LANGUAGE(30007))
-            self.log('getPlayItems, ydl.extract_info=None', 3)
+            self._log('getPlayItems, ydl.extract_info=None', 3)
             addonutils.endScript(exit=False)
         if info.get('_type') != 'playlist':
-            addonutils.notify('_type not supported. See log.')
-            self.log('getPlayItems, info type <%s> not supported' % info['_type'], 3)
+            addonutils.notify('_type not supported. See _log.')
+            self._log('getPlayItems, info type <%s> not supported' % info['_type'], 3)
             addonutils.endScript(exit=False)
         info = info.get('entries') or []
         for video in info:
@@ -372,14 +460,15 @@ class CC(object):
             subs = None
             try:
                 if 'subtitles' in video:
-                    subs = [x['url'] for x in video['subtitles'].get('en', '') if 'url' in x and x['ext'] == 'vtt']
+                    subs = [x['url'] for x in video['subtitles'].get('en', '')
+                            if 'url' in x and x['ext'] == 'vtt']
             except:
                 pass
 
             max_height = self.QUALITIES[self.QUALITY]
             for i in range(len(video.get('formats'))-1, 0, -1):
                 if video['formats'][i].get('height') <= max_height:
-                    self.log('getPlaylistContent, quality_found = %s' % video['formats'][i].get('format_id'))
+                    self._log('getPlaylistContent, quality_found = %s' % video['formats'][i].get('format_id'))
                     yield {
                         'idx': vidIDX-1,
                         'url': video['formats'][i].get('url'),
@@ -387,6 +476,7 @@ class CC(object):
                         'videoInfos': {
                             'mediatype': 'video',
                             'title': label,
+                            'plot': listitem.get('PLOT') if listitem else None
                         },
                         'subs': subs,
                     }

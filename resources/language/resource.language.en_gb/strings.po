@@ -6,9 +6,6 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plugin.video.cc.com\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Lunatixz Translation Team\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -20,15 +17,15 @@ msgid "General"
 msgstr ""
 
 msgctxt "#30001"
-msgid "Enable Debugging [Log errors]"
-msgstr ""
-
-msgctxt "#30002"
 msgid "Select Preferred Quality"
 msgstr ""
 
+msgctxt "#30002"
+msgid "Log Level"
+msgstr ""
+
 msgctxt "#30003"
-msgid "Something went wrong, Try again..."
+msgid "Enable Debugging"
 msgstr ""
 
 msgctxt "#30004"
@@ -41,6 +38,50 @@ msgstr ""
 
 msgctxt "#30006"
 msgid "Video not available."
+msgstr ""
+
+msgctxt "#30003"
+msgid "Something went wrong, Try again..."
+msgstr ""
+
+msgctxt "#30008"
+msgid "360p|540p|720p|1080p|Highest Available"
+msgstr ""
+
+msgctxt "#30009"
+msgid "Debug"
+msgstr ""
+
+msgctxt "#30010"
+msgid "Info"
+msgstr ""
+
+msgctxt "#30011"
+msgid "Warning"
+msgstr ""
+
+msgctxt "#30012"
+msgid "Error"
+msgstr ""
+
+msgctxt "#30013"
+msgid "Low definition - 360p"
+msgstr ""
+
+msgctxt "#30014"
+msgid "Standard definition - 540p"
+msgstr ""
+
+msgctxt "#30015"
+msgid "High definition - 720p"
+msgstr ""
+
+msgctxt "#30016"
+msgid "Full HD - 1080p"
+msgstr ""
+
+msgctxt "#30017"
+msgid "Highest Available"
 msgstr ""
 
 msgctxt "#31000"

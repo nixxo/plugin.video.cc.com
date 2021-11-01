@@ -18,7 +18,6 @@ from ..utils import (
     sanitized_Request,
     strip_or_none,
     timeconvert,
-    unescapeHTML,
     update_url_query,
     url_basename,
     xpath_text,
@@ -59,7 +58,7 @@ class MTVServicesInfoExtractor(InfoExtractor):
         req.add_header('User-Agent', 'curl/7')
         webpage = self._download_webpage(req, mtvn_id,
                                          'Downloading mobile page')
-        metrics_url = unescapeHTML(self._search_regex(r'<a href="(http://metrics.+?)"', webpage, 'url'))
+        metrics_url = self._search_regex(r'<a href="(http://metrics.+?)"', webpage, 'url')
         req = HEADRequest(metrics_url)
         response = self._request_webpage(req, mtvn_id, 'Resolving url')
         url = response.geturl()
@@ -262,12 +261,22 @@ class MTVServicesInfoExtractor(InfoExtractor):
             r'__DATA__\s*=\s*({.+?});', webpage, 'data'), None)
         main_container = self._extract_child_with_type(data, 'MainContainer')
         ab_testing = self._extract_child_with_type(main_container, 'ABTesting')
-        video_player = self._extract_child_with_type(ab_testing or main_container, 'VideoPlayer')
-        mgid = video_player['props']['media']['video']['config']['uri']
+        video_player = self._extract_child_with_type(ab_testing or main_container, 'Player')
+        mgid = video_player['props']['media']['video']['config']['uri'] if video_player else None
 
         if not mgid:
             mgid = self._search_regex(
                 r'"media":{"video":{"config":{"uri":"(mgid:.*?)"', webpage, 'mgid', default=None)
+
+        if not mgid:
+            video_player = self._extract_child_with_type(main_container, 'FlexWrapper')
+            video_player = self._extract_child_with_type(video_player, 'AuthSuiteWrapper')
+            video_player = self._extract_child_with_type(video_player, 'Player')
+            mgid = video_player['props']['videoDetail']['mgid']
+
+        if not mgid:
+            mgid = self._search_regex(
+                r'"videoDetail"[^\}]+?"mgid":"(mgid:.*?)"', webpage, 'mgid', default=None)
 
         return mgid
 

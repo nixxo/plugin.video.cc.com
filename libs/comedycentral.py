@@ -17,9 +17,9 @@ class CC(object):
     DEBUG = addonutils.getSettingAsBool('Debug')
     LOGLEVEL = addonutils.getSettingAsInt('LogLevel')
     PTVL_RUNNING = xbmcgui.Window(10000).getProperty('PseudoTVRunning') == 'True'
-    ICON = addonutils.ADDON.getAddonInfo('icon')
-    FANART = addonutils.ADDON.getAddonInfo('fanart')
     BASE_URL = 'https://www.cc.com'
+    BASE_MGID = 'mgid:arc:video:comedycentral.com:'
+    PAGES_CRUMB = ['topic', 'collections', 'shows']
     MAIN_MENU = [{
         'label': addonutils.LANGUAGE(31000),
         'params': {
@@ -41,20 +41,40 @@ class CC(object):
             'name': addonutils.LANGUAGE(31002),
         },
     }]
-    PAGES_CRUMB = ['topic', 'collections', 'shows']
-    BASE_MGID = 'mgid:arc:video:comedycentral.com:'
 
-    def __init__(self, listitem=None):
+    def __init__(self):
         self._log('__init__')
         self.cache = SimpleCache()
 
     def _log(self, msg, level=0):
+        """
+        Log message
+        If DEBUG is selected, all messages are forced to ERROR,
+        so everithing from the plugin is visible without
+        activating Debug Log in Kodi.
+        
+        :param      msg:    The message
+        :type       msg:    str
+        :param      level:  loglevel
+        :type       level:  int
+        """
         if self.DEBUG:
             addonutils.log(msg, 3)
         elif level >= self.LOGLEVEL:
             addonutils.log(msg, level)
 
     def _openURL(self, url, hours=24):
+        """
+        Get url content from the web or from the cache.
+        
+        :param      url:    The url
+        :type       url:    str
+        :param      hours:  cache retention time
+        :type       hours:  int
+        
+        :returns:   url content
+        :rtype:     str
+        """
         self._log('_openURL, url = %s' % url, 1)
         try:
             cacheresponse = self.cache.get(
@@ -73,6 +93,17 @@ class CC(object):
             addonutils.endScript()
 
     def _createURL(self, url, fix=False):
+        """
+        Check if url is full or only partial
+        
+        :param      url:  The url
+        :type       url:  str
+        :param      fix:  fix the url
+        :type       fix:  bool
+        
+        :returns:   fixed url
+        :rtype:     str
+        """
         if fix:
             # sometimes cc.com f**ks-up the url
             url = url.replace('/episode/', '/episodes/')
@@ -98,9 +129,9 @@ class CC(object):
         return {
             'thumb': thumb,
             'poster': thumb,
-            'fanart': (image or thumb) if fanart else self.FANART,
-            'icon': self.ICON,
-            'logo': self.ICON
+            'fanart': (image or thumb) if fanart else addonutils.FANART,
+            'icon': addonutils.ICON,
+            'logo': addonutils.ICON
         }
 
     def _loadJsonData(self, url, hours=24):
@@ -176,6 +207,33 @@ class CC(object):
                 items.extend(self._extractItems(item.get('children')) or [])
         self._log('_extractItems, items extracted = %d' % len(items), 1)
         return items
+
+    def _getDuration(self, duration):
+        """
+        Parse the duration in format [hh:]mm:ss and return in seconds
+        
+        :param      duration:  The duration
+        :type       duration:  int
+        """
+        try:
+            hh, mm, ss = re.match(r'(?:(\d+):)?(\d+):(\d+)', duration).groups()
+        except:
+            hh, mm, ss = '0,0,0'.split(',')
+        return int(hh or 0) * 3600 + int(mm or 0) * 60 + int(ss or 0)
+
+    def _getDate(self, date):
+        """
+        Parses the date in the format MM/DD/YYYY and returns it in
+        the format YYYY-MM-DD
+        
+        :param      date:  The date
+        :type       date:  str
+        """
+        try:
+            mm, dd, yy = re.match(r'(\d{2})/(\d{2})/(\d{4})', date).groups()
+        except:
+            mm, dd, yy = '01,01,2000'.split(',')
+        return '%s-%s-%s' % (yy, mm, dd)
 
     def getMainMenu(self):
         """
@@ -282,7 +340,7 @@ class CC(object):
             items = self._extractItemType(items, 'LineList', 'props')
             items = self._extractItemType(items, 'video-guide', 'filters')
         
-        items = items[0]['items']
+        items = items[0].get('items')
         # check if there is only one item
         if len(items) == 1:
             # and load it directly
@@ -326,9 +384,8 @@ class CC(object):
             items.get('children') or [],
             'MainContainer',
             'children')
-        items = self._extractItems(items)
 
-        for item in items:
+        for item in self._extractItems(items) or []:
             if not item:
                 continue
             if item.get('title') == 'Load More':
@@ -355,13 +412,12 @@ class CC(object):
             label = item['title']
             # playable is determined by the url not being in the parsable pages
             playable = not any(('/%s/' % x) in item['url'] for x in self.PAGES_CRUMB)
-            yield {
+            infos = {
                 'label': label,
                 'params': {
                     'mode': 'PLAY' if playable else 'GENERIC',
                     'url': self._createURL(item['url'], fix=playable),
                     'name': label,
-                    #'mgid': item.get('mgid') or item.get('id'),
                 },
                 'videoInfo': {
                     'mediatype': 'video' if playable else 'tvshow',
@@ -371,8 +427,24 @@ class CC(object):
                 'arts': self._createInfoArt(item['media']['image']['url']),
                 'playable': playable,
             }
+            if infos['params']['mode'] == 'PLAY':
+                self.cache.set(
+                    'Items, url = %s' % infos['params']['url'], infos,
+                    expiration=datetime.timedelta(hours=2), json_data=True)
+            yield infos
 
     def loadItems(self, name, url):
+        """
+        Generate a list of playable items from the provided url
+        
+        :param      name:  The name
+        :type       name:  str
+        :param      url:   The url
+        :type       url:   str
+        
+        :returns:   items
+        :rtype:     list
+        """
         self._log('loadItems, name = %s, url = %s' % (name, url))
         items = self._loadJsonData(url, hours=1)
         
@@ -396,12 +468,12 @@ class CC(object):
             except:
                 season, episode = None, None
 
-            yield {
+            infos = {
                 'label': label,
                 'params': {
                     'mode': 'PLAY',
                     'url': self._createURL(item['url']),
-                    'name': label,
+                    'name': sub or label,
                     'mgid': item.get('mgid') or item.get('id'),
                 },
                 'videoInfo': {
@@ -411,10 +483,16 @@ class CC(object):
                     'plot': item['meta']['description'],
                     'season': season,
                     'episode': episode,
+                    'duration': self._getDuration(item['media'].get('duration')),
+                    'aired': self._getDate(item['meta'].get('date')),
                 },
                 'arts': self._createInfoArt(item['media']['image']['url']),
                 'playable': True,
             }
+            self.cache.set(
+                'Items, url = %s' % infos['params']['url'], infos,
+                expiration=datetime.timedelta(hours=2), json_data=True)
+            yield infos
 
         if items.get('loadMore'):
             yield {
@@ -431,31 +509,56 @@ class CC(object):
                 'arts': self._createInfoArt(),
             }
 
-    def getMediaUrl(self, name, url, mgid=None, listitem=None):
+    def getMediaUrl(self, name, url, mgid=None):
+        """
+        Retrive media urls with yt-dlp for the provided url or mgid
+        
+        :param      name:      Title
+        :type       name:      str
+        :param      url:       The url
+        :type       url:       str
+        :param      mgid:      The mgid
+        :type       mgid:      str
+        
+        :returns:   playable urls
+        :rtype:     list
+        """
         from libs import yt_dlp
 
         self._log('getMediaUrl, url=%s, mgid=%s' % (url, str(mgid)))
         self._log('yt-dlp version: %s' % yt_dlp.version.__version__)
         if mgid and not mgid.startswith('mgid'):
             mgid = self.BASE_MGID + mgid
-        ydl = yt_dlp.YoutubeDL({
-            'skip_download': True,
-            'quiet': True
-        })
-        info = ydl.extract_info(mgid or url)
-        if info is None:
+
+        ytInfo = self.cache.get(
+            'yt-dlpInfos, [%s]' % mgid or url, json_data=True)
+        videoInfo = self.cache.get(
+            'Items, url = %s' % url, json_data=True
+            ) or {'videoInfo': None}
+
+        if not ytInfo:
+            try:
+                ytInfo = yt_dlp.YoutubeDL().extract_info(mgid or url)
+            except:
+                ytInfo = None
+
+            self.cache.set(
+                'yt-dlpInfos, [%s]' % mgid or url, ytInfo,
+                expiration=datetime.timedelta(hours=2), json_data=True)
+
+        if ytInfo is None:
             addonutils.notify(addonutils.LANGUAGE(30007))
             self._log('getPlayItems, ydl.extract_info=None', 3)
             addonutils.endScript(exit=False)
-        if info.get('_type') != 'playlist':
+        if ytInfo.get('_type') != 'playlist':
             addonutils.notify('_type not supported. See _log.')
-            self._log('getPlayItems, info type <%s> not supported' % info['_type'], 3)
+            self._log('getPlayItems, info type <%s> not supported' % ytInfo['_type'], 3)
             addonutils.endScript(exit=False)
-        info = info.get('entries') or []
-        for video in info:
+
+        for video in ytInfo.get('entries') or []:
             vidIDX = video.get('playlist_index') or video.get('playlist_autonumber')
             label = '%s - Act %d' % (name, vidIDX)
-            if len(info) == 1:
+            if len(ytInfo) == 1:
                 label = name
             subs = None
             try:
@@ -469,15 +572,17 @@ class CC(object):
             for i in range(len(video.get('formats'))-1, 0, -1):
                 if video['formats'][i].get('height') <= max_height:
                     self._log('getPlaylistContent, quality_found = %s' % video['formats'][i].get('format_id'))
-                    yield {
+
+                    infos = {
                         'idx': vidIDX-1,
                         'url': video['formats'][i].get('url'),
                         'label': label,
-                        'videoInfos': {
-                            'mediatype': 'video',
-                            'title': label,
-                            'plot': listitem.get('PLOT') if listitem else None
-                        },
+                        'videoInfo': videoInfo.get('videoInfo'),
                         'subs': subs,
                     }
+                    infos['videoInfo'].update({
+                        'title': label,
+                        'duration': video.get('duration'),
+                    })
+                    yield infos
                     break

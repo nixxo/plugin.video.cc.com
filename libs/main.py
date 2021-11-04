@@ -5,18 +5,16 @@ import xbmc
 
 
 class ComedyCentral(object):
-    LISTITEM = {}
 
-    def __init__(self, listitem=None):
-        self.LISTITEM = listitem
-        self.cc = CC(listitem)
+    def __init__(self):
+        self.cc = CC()
 
     def addItems(self, items):
         episodes = False
         tvshows = True
         seasons = True
         for item in items or []:
-            episodes = any([item.get('playable'), episodes])
+            episodes = all([item.get('playable'), episodes])
             if item.get('videoInfo'):
                 tvshows = all([item['videoInfo'].get('mediatype') == 'tvshow', tvshows])
                 seasons = all([item['videoInfo'].get('mediatype') == 'season', seasons])
@@ -24,6 +22,7 @@ class ComedyCentral(object):
                 tvshows, seasons = False, False
             addonutils.addListItem(
                 label=item.get('label'),
+                label2=item.get('label2'),
                 params=item.get('params'),
                 arts=item.get('arts'),
                 videoInfo=item.get('videoInfo'),
@@ -62,7 +61,7 @@ class ComedyCentral(object):
                     return addonutils.notify(addonutils.LANGUAGE(30007))
                 playItems = self.cc.getMediaUrl(
                     params['name'], params['url'],
-                    params.get('mgid'), self.LISTITEM)
+                    params.get('mgid'))
                 plst = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
                 plst.clear()
                 xbmc.sleep(200)
@@ -71,8 +70,8 @@ class ComedyCentral(object):
                     vidIDX = item['idx']
                     liz = addonutils.createListItem(
                         label=item['label'], path=item['url'],
-                        videoInfo=item['videoInfos'], subs=item['subs'],
-                        isFolder=False)
+                        videoInfo=item['videoInfo'], subs=item.get('subs'),
+                        arts=item.get('arts'), isFolder=False)
                     if vidIDX == 0:
                         addonutils.setResolvedUrl(item=liz, exit=False)
                     plst.add(item['url'], liz, vidIDX)
@@ -80,11 +79,7 @@ class ComedyCentral(object):
 
         else:
             menu = self.cc.getMainMenu()
-            for item in menu or []:
-                addonutils.addListItem(
-                    item['label'],
-                    item['params'],
-                    isFolder=True)
+            self.addItems(menu)
 
         self.cc = None
         addonutils.endScript(exit=False)

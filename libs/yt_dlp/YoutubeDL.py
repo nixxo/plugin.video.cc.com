@@ -51,7 +51,6 @@ from .utils import (
     expand_path,
     ExtractorError,
     float_or_none,
-    format_bytes,
     format_field,
     formatSeconds,
     GeoRestrictedError,
@@ -65,7 +64,6 @@ from .utils import (
     orderedSet,
     OUTTMPL_TYPES,
     PagedList,
-    parse_filesize,
     PerRequestProxyHandler,
     PostProcessingError,
     preferredencoding,
@@ -152,32 +150,9 @@ class YoutubeDL(object):
         self._err_file = sys.stderr
         self.params = params
 
-        self.params['no_color'] = self.params.get('no_color') or not supports_terminal_sequences(self._err_file)
-
         if sys.version_info < (3, 6):
             self.report_warning(
                 'Python version %d.%d is not supported! Please update to Python 3.6 or above' % sys.version_info[:2])
-
-        if self.params.get('allow_unplayable_formats'):
-            self.report_warning(
-                f'You have asked for {self._color_text("unplayable formats", "blue")} to be listed/downloaded. '
-                'This is a developer option intended for debugging. \n'
-                '         If you experience any issues while using this option, '
-                f'{self._color_text("DO NOT", "red")} open a bug report')
-
-        def check_deprecated(param, option, suggestion):
-            if self.params.get(param) is not None:
-                self.report_warning('%s is deprecated. Use %s instead' % (option, suggestion))
-                return True
-            return False
-
-        if check_deprecated('cn_verification_proxy', '--cn-verification-proxy', '--geo-verification-proxy'):
-            if self.params.get('geo_verification_proxy') is None:
-                self.params['geo_verification_proxy'] = self.params['cn_verification_proxy']
-
-        check_deprecated('autonumber', '--auto-number', '-o "%(autonumber)s-%(title)s.%(ext)s"')
-        check_deprecated('usetitle', '--title', '-o "%(title)s-%(id)s.%(ext)s"')
-        check_deprecated('useid', '--id', '-o "%(id)s.%(ext)s"')
 
         for msg in self.params.get('warnings', []):
             self.report_warning(msg)
@@ -192,30 +167,6 @@ class YoutubeDL(object):
         else:
             self.params['nooverwrites'] = not self.params['overwrites']
 
-        if params.get('bidi_workaround', False):
-            try:
-                import pty
-                master, slave = pty.openpty()
-                width = compat_get_terminal_size().columns
-                if width is None:
-                    width_args = []
-                else:
-                    width_args = ['-w', str(width)]
-                sp_kwargs = dict(
-                    stdin=subprocess.PIPE,
-                    stdout=slave,
-                    stderr=self._err_file)
-                try:
-                    self._output_process = Popen(['bidiv'] + width_args, **sp_kwargs)
-                except OSError:
-                    self._output_process = Popen(['fribidi', '-c', 'UTF-8'] + width_args, **sp_kwargs)
-                self._output_channel = os.fdopen(master, 'rb')
-            except OSError as ose:
-                if ose.errno == errno.ENOENT:
-                    self.report_warning('Could not find fribidi executable, ignoring --bidi-workaround . Make sure that  fribidi  is an executable file in one of the directories in your $PATH.')
-                else:
-                    raise
-
         if (sys.platform != 'win32'
                 and sys.getfilesystemencoding() in ['ascii', 'ANSI_X3.4-1968']
                 and not params.get('restrictfilenames', False)):
@@ -225,8 +176,6 @@ class YoutubeDL(object):
                 'cannot encode all characters. '
                 'Set the LC_ALL environment variable to fix this.')
             self.params['restrictfilenames'] = True
-
-        self.outtmpl_dict = self.parse_outtmpl()
 
         # Creating format selector here allows us to catch syntax errors before the extraction
         self.format_selector = (
@@ -363,41 +312,10 @@ class YoutubeDL(object):
         else:
             self._write_string('%s\n' % self._bidi_workaround(message), self._err_file, only_once=only_once)
 
-    def to_console_title(self, message):
-        if not self.params.get('consoletitle', False):
-            return
-        if compat_os_name == 'nt':
-            if ctypes.windll.kernel32.GetConsoleWindow():
-                # c_wchar_p() might not be necessary if `message` is
-                # already of type unicode()
-                ctypes.windll.kernel32.SetConsoleTitleW(ctypes.c_wchar_p(message))
-        elif 'TERM' in os.environ:
-            self._write_string('\033]0;%s\007' % message, self._screen_file)
-
-    def save_console_title(self):
-        if not self.params.get('consoletitle', False):
-            return
-        if self.params.get('simulate'):
-            return
-        if compat_os_name != 'nt' and 'TERM' in os.environ:
-            # Save the title on stack
-            self._write_string('\033[22;0t', self._screen_file)
-
-    def restore_console_title(self):
-        if not self.params.get('consoletitle', False):
-            return
-        if self.params.get('simulate'):
-            return
-        if compat_os_name != 'nt' and 'TERM' in os.environ:
-            # Restore the title from stack
-            self._write_string('\033[23;0t', self._screen_file)
-
     def __enter__(self):
-        self.save_console_title()
         return self
 
     def __exit__(self, *args):
-        self.restore_console_title()
 
         if self.params.get('cookiefile') is not None:
             self.cookiejar.save(ignore_discard=True, ignore_expires=True)
@@ -438,11 +356,6 @@ class YoutubeDL(object):
         self.to_stdout(
             message, skip_eol, quiet=self.params.get('quiet', False))
 
-    def _color_text(self, text, color):
-        if self.params.get('no_color'):
-            return text
-        return f'{TERMINAL_SEQUENCES[color.upper()]}{text}{TERMINAL_SEQUENCES["RESET_STYLE"]}'
-
     def report_warning(self, message, only_once=False):
         '''
         Print the message to stderr, it will be prefixed with 'WARNING:'
@@ -453,14 +366,14 @@ class YoutubeDL(object):
         else:
             if self.params.get('no_warnings'):
                 return
-            self.to_stderr(f'{self._color_text("WARNING:", "yellow")} {message}', only_once)
+            self.to_stderr(f'{"WARNING:"} {message}', only_once)
 
     def report_error(self, message, tb=None):
         '''
         Do the same as trouble, but prefixes the message with 'ERROR:', colored
         in red if stderr is a tty file.
         '''
-        self.trouble(f'{self._color_text("ERROR:", "red")} {message}', tb)
+        self.trouble(f'{"ERROR:"} {message}', tb)
 
     def write_debug(self, message, only_once=False):
         '''Log debug message or Print message to stderr'''
@@ -472,20 +385,6 @@ class YoutubeDL(object):
         else:
             self.to_stderr(message, only_once)
 
-    def report_file_already_downloaded(self, file_name):
-        """Report file has already been fully downloaded."""
-        try:
-            self.to_screen('[download] %s has already been downloaded' % file_name)
-        except UnicodeEncodeError:
-            self.to_screen('[download] The file has already been downloaded')
-
-    def report_file_delete(self, file_name):
-        """Report that existing file will be deleted."""
-        try:
-            self.to_screen('Deleting existing file %s' % file_name)
-        except UnicodeEncodeError:
-            self.to_screen('Deleting existing file')
-
     def raise_no_formats(self, info, forced=False):
         has_drm = info.get('__has_drm')
         msg = 'This video is DRM protected' if has_drm else 'No video formats found!'
@@ -495,264 +394,6 @@ class YoutubeDL(object):
                                  expected=has_drm or expected)
         else:
             self.report_warning(msg)
-
-    def parse_outtmpl(self):
-        outtmpl_dict = self.params.get('outtmpl', {})
-        if not isinstance(outtmpl_dict, dict):
-            outtmpl_dict = {'default': outtmpl_dict}
-        outtmpl_dict.update({
-            k: v for k, v in DEFAULT_OUTTMPL.items()
-            if outtmpl_dict.get(k) is None})
-        for key, val in outtmpl_dict.items():
-            if isinstance(val, bytes):
-                self.report_warning(
-                    'Parameter outtmpl is bytes, but should be a unicode string. '
-                    'Put  from __future__ import unicode_literals  at the top of your code file or consider switching to Python 3.x.')
-        return outtmpl_dict
-
-    @staticmethod
-    def _outtmpl_expandpath(outtmpl):
-        # expand_path translates '%%' into '%' and '$$' into '$'
-        # correspondingly that is not what we want since we need to keep
-        # '%%' intact for template dict substitution step. Working around
-        # with boundary-alike separator hack.
-        sep = ''.join([random.choice(ascii_letters) for _ in range(32)])
-        outtmpl = outtmpl.replace('%%', '%{0}%'.format(sep)).replace('$$', '${0}$'.format(sep))
-
-        # outtmpl should be expand_path'ed before template dict substitution
-        # because meta fields may contain env variables we don't want to
-        # be expanded. For example, for outtmpl "%(title)s.%(ext)s" and
-        # title "Hello $PATH", we don't want `$PATH` to be expanded.
-        return expand_path(outtmpl).replace(sep, '')
-
-    @staticmethod
-    def escape_outtmpl(outtmpl):
-        ''' Escape any remaining strings like %s, %abc% etc. '''
-        return re.sub(
-            STR_FORMAT_RE_TMPL.format('', '(?![%(\0])'),
-            lambda mobj: ('' if mobj.group('has_key') else '%') + mobj.group(0),
-            outtmpl)
-
-    @classmethod
-    def validate_outtmpl(cls, outtmpl):
-        ''' @return None or Exception object '''
-        outtmpl = re.sub(
-            STR_FORMAT_RE_TMPL.format('[^)]*', '[ljqBU]'),
-            lambda mobj: f'{mobj.group(0)[:-1]}s',
-            cls._outtmpl_expandpath(outtmpl))
-        try:
-            cls.escape_outtmpl(outtmpl) % collections.defaultdict(int)
-            return None
-        except ValueError as err:
-            return err
-
-    def prepare_outtmpl(self, outtmpl, info_dict, sanitize=None):
-        """ Make the outtmpl and info_dict suitable for substitution: ydl.escape_outtmpl(outtmpl) % info_dict """
-        info_dict.setdefault('epoch', int(time.time()))  # keep epoch consistent once set
-
-        info_dict = dict(info_dict)  # Do not sanitize so as not to consume LazyList
-        for key in ('__original_infodict', '__postprocessors'):
-            info_dict.pop(key, None)
-        info_dict['duration_string'] = (  # %(duration>%H-%M-%S)s is wrong if duration > 24hrs
-            formatSeconds(info_dict['duration'], '-' if sanitize else ':')
-            if info_dict.get('duration', None) is not None
-            else None)
-        info_dict['autonumber'] = self.params.get('autonumber_start', 1) - 1 + self._num_downloads
-        if info_dict.get('resolution') is None:
-            info_dict['resolution'] = self.format_resolution(info_dict, default=None)
-
-        # For fields playlist_index, playlist_autonumber and autonumber convert all occurrences
-        # of %(field)s to %(field)0Nd for backward compatibility
-        field_size_compat_map = {
-            'playlist_index': len(str(info_dict.get('_last_playlist_index') or '')),
-            'playlist_autonumber': len(str(info_dict.get('n_entries') or '')),
-            'autonumber': self.params.get('autonumber_size') or 5,
-        }
-
-        TMPL_DICT = {}
-        EXTERNAL_FORMAT_RE = re.compile(STR_FORMAT_RE_TMPL.format('[^)]*', f'[{STR_FORMAT_TYPES}ljqBU]'))
-        MATH_FUNCTIONS = {
-            '+': float.__add__,
-            '-': float.__sub__,
-        }
-        # Field is of the form key1.key2...
-        # where keys (except first) can be string, int or slice
-        FIELD_RE = r'\w*(?:\.(?:\w+|{num}|{num}?(?::{num}?){{1,2}}))*'.format(num=r'(?:-?\d+)')
-        MATH_FIELD_RE = r'''{field}|{num}'''.format(field=FIELD_RE, num=r'-?\d+(?:.\d+)?')
-        MATH_OPERATORS_RE = r'(?:%s)' % '|'.join(map(re.escape, MATH_FUNCTIONS.keys()))
-        INTERNAL_FORMAT_RE = re.compile(r'''(?x)
-            (?P<negate>-)?
-            (?P<fields>{field})
-            (?P<maths>(?:{math_op}{math_field})*)
-            (?:>(?P<strf_format>.+?))?
-            (?P<alternate>(?<!\\),[^|)]+)?
-            (?:\|(?P<default>.*?))?
-            $'''.format(field=FIELD_RE, math_op=MATH_OPERATORS_RE, math_field=MATH_FIELD_RE))
-
-        def _traverse_infodict(k):
-            k = k.split('.')
-            if k[0] == '':
-                k.pop(0)
-            return traverse_obj(info_dict, k, is_user_input=True, traverse_string=True)
-
-        def get_value(mdict):
-            # Object traversal
-            value = _traverse_infodict(mdict['fields'])
-            # Negative
-            if mdict['negate']:
-                value = float_or_none(value)
-                if value is not None:
-                    value *= -1
-            # Do maths
-            offset_key = mdict['maths']
-            if offset_key:
-                value = float_or_none(value)
-                operator = None
-                while offset_key:
-                    item = re.match(
-                        MATH_FIELD_RE if operator else MATH_OPERATORS_RE,
-                        offset_key).group(0)
-                    offset_key = offset_key[len(item):]
-                    if operator is None:
-                        operator = MATH_FUNCTIONS[item]
-                        continue
-                    item, multiplier = (item[1:], -1) if item[0] == '-' else (item, 1)
-                    offset = float_or_none(item)
-                    if offset is None:
-                        offset = float_or_none(_traverse_infodict(item))
-                    try:
-                        value = operator(value, multiplier * offset)
-                    except (TypeError, ZeroDivisionError):
-                        return None
-                    operator = None
-            # Datetime formatting
-            if mdict['strf_format']:
-                value = strftime_or_none(value, mdict['strf_format'].replace('\\,', ','))
-
-            return value
-
-        na = self.params.get('outtmpl_na_placeholder', 'NA')
-
-        def _dumpjson_default(obj):
-            if isinstance(obj, (set, LazyList)):
-                return list(obj)
-            raise TypeError(f'Object of type {type(obj).__name__} is not JSON serializable')
-
-        def create_key(outer_mobj):
-            if not outer_mobj.group('has_key'):
-                return f'%{outer_mobj.group(0)}'
-            key = outer_mobj.group('key')
-            mobj = re.match(INTERNAL_FORMAT_RE, key)
-            initial_field = mobj.group('fields').split('.')[-1] if mobj else ''
-            value, default = None, na
-            while mobj:
-                mobj = mobj.groupdict()
-                default = mobj['default'] if mobj['default'] is not None else default
-                value = get_value(mobj)
-                if value is None and mobj['alternate']:
-                    mobj = re.match(INTERNAL_FORMAT_RE, mobj['alternate'][1:])
-                else:
-                    break
-
-            fmt = outer_mobj.group('format')
-            if fmt == 's' and value is not None and key in field_size_compat_map.keys():
-                fmt = '0{:d}d'.format(field_size_compat_map[key])
-
-            value = default if value is None else value
-
-            str_fmt = f'{fmt[:-1]}s'
-            if fmt[-1] == 'l':  # list
-                delim = '\n' if '#' in (outer_mobj.group('conversion') or '') else ', '
-                value, fmt = delim.join(variadic(value)), str_fmt
-            elif fmt[-1] == 'j':  # json
-                value, fmt = json.dumps(value, default=_dumpjson_default), str_fmt
-            elif fmt[-1] == 'q':  # quoted
-                value, fmt = compat_shlex_quote(str(value)), str_fmt
-            elif fmt[-1] == 'B':  # bytes
-                value = f'%{str_fmt}'.encode('utf-8') % str(value).encode('utf-8')
-                value, fmt = value.decode('utf-8', 'ignore'), 's'
-            elif fmt[-1] == 'U':  # unicode normalized
-                opts = outer_mobj.group('conversion') or ''
-                value, fmt = unicodedata.normalize(
-                    # "+" = compatibility equivalence, "#" = NFD
-                    'NF%s%s' % ('K' if '+' in opts else '', 'D' if '#' in opts else 'C'),
-                    value), str_fmt
-            elif fmt[-1] == 'c':
-                if value:
-                    value = str(value)[0]
-                else:
-                    fmt = str_fmt
-            elif fmt[-1] not in 'rs':  # numeric
-                value = float_or_none(value)
-                if value is None:
-                    value, fmt = default, 's'
-
-            if sanitize:
-                if fmt[-1] == 'r':
-                    # If value is an object, sanitize might convert it to a string
-                    # So we convert it to repr first
-                    value, fmt = repr(value), str_fmt
-                if fmt[-1] in 'csr':
-                    value = sanitize(initial_field, value)
-
-            key = '%s\0%s' % (key.replace('%', '%\0'), outer_mobj.group('format'))
-            TMPL_DICT[key] = value
-            return '{prefix}%({key}){fmt}'.format(key=key, fmt=fmt, prefix=outer_mobj.group('prefix'))
-
-        return EXTERNAL_FORMAT_RE.sub(create_key, outtmpl), TMPL_DICT
-
-    def evaluate_outtmpl(self, outtmpl, info_dict, *args, **kwargs):
-        outtmpl, info_dict = self.prepare_outtmpl(outtmpl, info_dict, *args, **kwargs)
-        return self.escape_outtmpl(outtmpl) % info_dict
-
-    def _prepare_filename(self, info_dict, tmpl_type='default'):
-        try:
-            sanitize = lambda k, v: sanitize_filename(
-                compat_str(v),
-                restricted=self.params.get('restrictfilenames'),
-                is_id=(k == 'id' or k.endswith('_id')))
-            outtmpl = self.outtmpl_dict.get(tmpl_type, self.outtmpl_dict['default'])
-            outtmpl, template_dict = self.prepare_outtmpl(outtmpl, info_dict, sanitize)
-            outtmpl = self.escape_outtmpl(self._outtmpl_expandpath(outtmpl))
-            filename = outtmpl % template_dict
-
-            force_ext = OUTTMPL_TYPES.get(tmpl_type)
-            if filename and force_ext is not None:
-                filename = replace_extension(filename, force_ext, info_dict.get('ext'))
-
-            # https://github.com/blackjack4494/youtube-dlc/issues/85
-            trim_file_name = self.params.get('trim_file_name', False)
-            if trim_file_name:
-                fn_groups = filename.rsplit('.')
-                ext = fn_groups[-1]
-                sub_ext = ''
-                if len(fn_groups) > 2:
-                    sub_ext = fn_groups[-2]
-                filename = '.'.join(filter(None, [fn_groups[0][:trim_file_name], sub_ext, ext]))
-
-            return filename
-        except ValueError as err:
-            self.report_error('Error in output template: ' + str(err) + ' (encoding: ' + repr(preferredencoding()) + ')')
-            return None
-
-    def prepare_filename(self, info_dict, dir_type='', warn=False):
-        """Generate the output filename."""
-
-        filename = self._prepare_filename(info_dict, dir_type or 'default')
-        if not filename and dir_type not in ('', 'temp'):
-            return ''
-
-        if warn:
-            if not self.params.get('paths'):
-                pass
-            elif filename == '-':
-                self.report_warning('--paths is ignored when an outputting to stdout', only_once=True)
-            elif os.path.isabs(filename):
-                self.report_warning('--paths is ignored since an absolute path is given in output template', only_once=True)
-        if filename == '-' or not filename:
-            return filename
-
-        return filename
 
     def _match_entry(self, info_dict, incomplete=False, silent=False):
         """ Returns None if the file should be downloaded """
@@ -854,9 +495,6 @@ class YoutubeDL(object):
                 return func(self, *args, **kwargs)
             except GeoRestrictedError as e:
                 msg = e.msg
-                if e.countries:
-                    msg += '\nThis video is available in %s.' % ', '.join(
-                        map(ISO3166Utils.short2full, e.countries))
                 msg += '\nYou might want to use a VPN or a proxy server (with --proxy) to workaround.'
                 self.report_error(msg)
             except ExtractorError as e:  # An error we somewhat expected
@@ -868,10 +506,7 @@ class YoutubeDL(object):
             except (MaxDownloadsReached, ExistingVideoReached, RejectedVideoReached, LazyList.IndexError):
                 raise
             except Exception as e:
-                if self.params.get('ignoreerrors'):
-                    self.report_error(error_to_compat_str(e), tb=encode_compat_str(traceback.format_exc()))
-                else:
-                    raise
+                raise e
         return wrapper
 
     @__handle_extraction_exceptions
@@ -1198,9 +833,7 @@ class YoutubeDL(object):
         prefer_best = (
             not self.params.get('simulate')
             and download
-            and (
-                info_dict.get('is_live', False)
-                or self.outtmpl_dict['default'] == '-'))
+            and info_dict.get('is_live', False))
         compat = (
             prefer_best
             or self.params.get('allow_multiple_audio_streams', False)
@@ -1857,20 +1490,17 @@ class YoutubeDL(object):
         self._num_downloads += 1
 
         # info_dict['_filename'] needs to be set for backward compatibility
-        info_dict['_filename'] = full_filename = self.prepare_filename(info_dict, warn=True)
-        temp_filename = self.prepare_filename(info_dict, 'temp')
+        #info_dict['_filename'] = full_filename = self.prepare_filename(info_dict, warn=True)
+        #temp_filename = self.prepare_filename(info_dict, 'temp')
         files_to_move = {}
 
         # Forced printings
-        self.__forced_printings(info_dict, full_filename, incomplete=('format' not in info_dict))
+        self.__forced_printings(info_dict, 'full_filename', incomplete=('format' not in info_dict))
 
         if self.params.get('simulate'):
             if self.params.get('force_write_download_archive', False):
                 self.record_download_archive(info_dict)
             # Do nothing else if in simulate mode
-            return
-
-        if full_filename is None:
             return
 
         try:
@@ -1885,13 +1515,6 @@ class YoutubeDL(object):
 
     def download(self, url_list):
         """Download a given list of URLs."""
-        outtmpl = self.outtmpl_dict['default']
-        if (len(url_list) > 1
-                and outtmpl != '-'
-                and '%' not in outtmpl
-                and self.params.get('max_downloads') != 1):
-            raise SameFileError(outtmpl)
-
         for url in url_list:
             try:
                 # It also downloads the videos

@@ -6,10 +6,8 @@ f'You are using an unsupported version of Python. Only Python versions 3.6 and a
 __license__ = 'Public Domain'
 
 import codecs
-import io
 import os
 import random
-import re
 import sys
 
 from .options import (
@@ -26,12 +24,9 @@ from .utils import (
     preferredencoding,
     RejectedVideoReached,
     SameFileError,
-    setproctitle,
-    std_headers,
     write_string,
 )
 from .extractor import gen_extractors, list_extractors
-from .extractor.common import InfoExtractor
 
 from .YoutubeDL import YoutubeDL
 
@@ -44,8 +39,6 @@ def _real_main(argv=None):
 
     workaround_optparse_bug9161()
 
-    setproctitle('yt-dlp')
-
     parser, opts, args = parseOpts(argv)
     warnings = []
 
@@ -54,27 +47,6 @@ def _real_main(argv=None):
     all_urls = batch_urls + [url.strip() for url in args]  # batch_urls are already striped in read_batch_urls
     _enc = preferredencoding()
     all_urls = [url.decode(_enc, 'ignore') if isinstance(url, bytes) else url for url in all_urls]
-
-    if opts.list_extractors:
-        for ie in list_extractors(opts.age_limit):
-            write_string(ie.IE_NAME + (' (CURRENTLY BROKEN)' if not ie.working() else '') + '\n', out=sys.stdout)
-            matchedUrls = [url for url in all_urls if ie.suitable(url)]
-            for mu in matchedUrls:
-                write_string('  ' + mu + '\n', out=sys.stdout)
-        sys.exit(0)
-    if opts.list_extractor_descriptions:
-        for ie in list_extractors(opts.age_limit):
-            if not ie.working():
-                continue
-            desc = getattr(ie, 'IE_DESC', ie.IE_NAME)
-            if desc is False:
-                continue
-            if hasattr(ie, 'SEARCH_KEY'):
-                _SEARCHES = ('cute kittens', 'slithering pythons', 'falling cat', 'angry poodle', 'purple fish', 'running tortoise', 'sleeping bunny', 'burping cow')
-                _COUNTS = ('', '5', '10', 'all')
-                desc += ' (Example: "%s%s:%s" )' % (ie.SEARCH_KEY, random.choice(_COUNTS), random.choice(_SEARCHES))
-            write_string(desc + '\n', out=sys.stdout)
-        sys.exit(0)
 
     def parse_retries(retries, name=''):
         if retries in ('inf', 'infinite'):
@@ -91,11 +63,7 @@ def _real_main(argv=None):
         if err:
             parser.error('invalid %s %r: %s' % (msg, tmpl, error_to_compat_str(err)))
 
-    any_getting = opts.getfilename or opts.getformat or opts.dumpjson or opts.dump_single_json
-    any_printing = opts.print_json
-
-    # If JSON is not printed anywhere, but comments are requested, save it to file
-    printing_json = opts.dumpjson or opts.print_json or opts.dump_single_json
+    any_getting = opts.dumpjson
 
     def report_conflict(arg1, arg2):
         warnings.append('%s is ignored since %s was given' % (arg2, arg1))
@@ -106,15 +74,8 @@ def _real_main(argv=None):
     final_ext = None
 
     ydl_opts = {
-        'quiet': (opts.quiet or any_getting or any_printing),
-        'forcefilename': opts.getfilename,
-        'forceformat': opts.getformat,
-        'forcejson': opts.dumpjson or opts.print_json,
-        'dump_single_json': opts.dump_single_json,
-        'skip_download': opts.skip_download,
-        'format': opts.format,
-        'listformats': opts.listformats,
-        'ignoreerrors': opts.ignoreerrors,
+        'quiet': any_getting,
+        'forcejson': opts.dumpjson,
         'logtostderr': True,
         'verbose': opts.verbose,
         'final_ext': final_ext,

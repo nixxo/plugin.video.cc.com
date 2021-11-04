@@ -548,7 +548,7 @@ class InfoExtractor(object):
                 if mobj:
                     break
 
-        _name = self._downloader._color_text(name, 'blue')
+        _name = name
 
         if mobj:
             if group is None:
@@ -677,8 +677,6 @@ class InfoExtractor(object):
                 return value
             elif conversion == 'float_none':
                 return float_or_none(value)
-            elif conversion == 'bytes':
-                return FileDownloader.parse_bytes(value)
             elif conversion == 'order':
                 order_list = (self._use_free_order and self._get_field_setting(field, 'order_free')) or self._get_field_setting(field, 'order')
                 use_regex = self._get_field_setting(field, 'regex')
@@ -938,13 +936,6 @@ class InfoExtractor(object):
                 return stream_group_id
             rendition = stream_group[0]
             return rendition.get('NAME') or stream_group_id
-
-        # parse EXT-X-MEDIA tags before EXT-X-STREAM-INF in order to have the
-        # chance to detect video only formats when EXT-X-STREAM-INF tags
-        # precede EXT-X-MEDIA tags in HLS manifest such as [3].
-        for line in m3u8_doc.splitlines():
-            if line.startswith('#EXT-X-MEDIA:'):
-                extract_media(line)
 
         for line in m3u8_doc.splitlines():
             if line.startswith('#EXT-X-STREAM-INF:'):

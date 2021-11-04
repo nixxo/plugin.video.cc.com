@@ -2066,7 +2066,7 @@ class ExtractorError(YoutubeDLError):
             format_field(video_id, template='%s: '),
             self.msg,
             format_field(cause, template=' (caused by %r)'),
-            '' if expected else bug_reports_message())))
+            '')))
 
     def format_traceback(self):
         if self.traceback is None:

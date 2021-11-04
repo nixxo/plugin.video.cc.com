@@ -269,14 +269,14 @@ class MTVServicesInfoExtractor(InfoExtractor):
                 r'"media":{"video":{"config":{"uri":"(mgid:.*?)"', webpage, 'mgid', default=None)
 
         if not mgid:
-            video_player = self._extract_child_with_type(main_container, 'FlexWrapper')
-            video_player = self._extract_child_with_type(video_player, 'AuthSuiteWrapper')
-            video_player = self._extract_child_with_type(video_player, 'Player')
-            mgid = video_player['props']['videoDetail']['mgid']
+            flex_wrapper = self._extract_child_with_type(ab_testing or main_container, 'FlexWrapper')
+            auth_suite_wrapper = self._extract_child_with_type(flex_wrapper, 'AuthSuiteWrapper')
+            player = self._extract_child_with_type(auth_suite_wrapper or flex_wrapper, 'Player')
+            if player:
+                mgid = player['props']['videoDetail']['mgid']
 
         if not mgid:
-            mgid = self._search_regex(
-                r'"videoDetail"[^\}]+?"mgid":"(mgid:.*?)"', webpage, 'mgid', default=None)
+            raise ExtractorError('Could not extract mgid')
 
         return mgid
 

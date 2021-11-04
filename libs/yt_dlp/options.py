@@ -116,80 +116,12 @@ def parseOpts(overrideArguments=None):
         '--version',
         action='version',
         help='Print program version and exit')
-    general.add_option(
-        '-U', '--update',
-        action='store_true', dest='update_self',
-        help='Update this program to latest version. Make sure that you have sufficient permissions (run with sudo if needed)')
-    general.add_option(
-        '-i', '--ignore-errors',
-        action='store_true', dest='ignoreerrors',
-        help='Ignore download and postprocessing errors. The download will be considered successfull even if the postprocessing fails')
-    general.add_option(
-        '--list-extractors',
-        action='store_true', dest='list_extractors', default=False,
-        help='List all supported extractors and exit')
-    general.add_option(
-        '--extractor-descriptions',
-        action='store_true', dest='list_extractor_descriptions', default=False,
-        help='Output descriptions of all supported extractors and exit')
-
-    video_format = optparse.OptionGroup(parser, 'Video Format Options')
-    video_format.add_option(
-        '-f', '--format',
-        action='store', dest='format', metavar='FORMAT', default=None,
-        help='Video format code, see "FORMAT SELECTION" for more details')
-    video_format.add_option(
-        '--format-sort-force', '--S-force',
-        action='store_true', dest='format_sort_force', metavar='FORMAT', default=False,
-        help=(
-            'Force user specified sort order to have precedence over all fields, '
-            'see "Sorting Formats" for more details'))
-    video_format.add_option(
-        '--no-format-sort-force',
-        action='store_false', dest='format_sort_force', metavar='FORMAT', default=False,
-        help=(
-            'Some fields have precedence over the user specified sort order (default), '
-            'see "Sorting Formats" for more details'))
-    video_format.add_option(
-        '--all-formats',
-        action='store_const', dest='format', const='all',
-        help=optparse.SUPPRESS_HELP)
-    video_format.add_option(
-        '-F', '--list-formats',
-        action='store_true', dest='listformats',
-        help='List available formats of each video. Simulate unless --no-simulate is used')
 
     verbosity = optparse.OptionGroup(parser, 'Verbosity and Simulation Options')
-    verbosity.add_option(
-        '-q', '--quiet',
-        action='store_true', dest='quiet', default=False,
-        help='Activate quiet mode. If used with --verbose, print the log to stderr')
-    verbosity.add_option(
-        '--skip-download', '--no-download',
-        action='store_true', dest='skip_download', default=False,
-        help='Do not download the video but write all related files (Alias: --no-download)')
-    verbosity.add_option(
-        '--get-filename',
-        action='store_true', dest='getfilename', default=False,
-        help=optparse.SUPPRESS_HELP)
-    verbosity.add_option(
-        '--get-format',
-        action='store_true', dest='getformat', default=False,
-        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '-j', '--dump-json',
         action='store_true', dest='dumpjson', default=False,
         help='Quiet, but print JSON information for each video. Simulate unless --no-simulate is used. See "OUTPUT TEMPLATE" for a description of available keys')
-    verbosity.add_option(
-        '-J', '--dump-single-json',
-        action='store_true', dest='dump_single_json', default=False,
-        help=(
-            'Quiet, but print JSON information for each url or infojson passed. Simulate unless --no-simulate is used. '
-            'If the URL refers to a playlist, the whole playlist information is dumped in a single line'))
-    verbosity.add_option(
-        '--print-json',
-        action='store_true', dest='print_json', default=False,
-        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '-v', '--verbose',
         action='store_true', dest='verbose', default=False,
@@ -197,7 +129,6 @@ def parseOpts(overrideArguments=None):
 
     parser.add_option_group(general)
     parser.add_option_group(verbosity)
-    parser.add_option_group(video_format)
 
     if overrideArguments is not None:
         opts, args = parser.parse_args(overrideArguments)

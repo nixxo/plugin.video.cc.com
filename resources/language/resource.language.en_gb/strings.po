@@ -45,7 +45,7 @@ msgid "Something went wrong, Try again..."
 msgstr ""
 
 msgctxt "#30008"
-msgid "360p|540p|720p|1080p|Highest Available"
+msgid "Use InputStream Adaptive"
 msgstr ""
 
 msgctxt "#30009"

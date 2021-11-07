@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <category label="30000">
-        <setting id="Quality" type="enum" label="30001" default="4" lvalues="30013|30014|30015|30016|30017" />
-        <setting id="LogLevel" type="enum" label="30002" default="3" lvalues="30009|30010|30011|30012"/>
-        <setting id="Debug" type="bool" label="30003" default="false" />
+        <setting label="30001" id="Quality" type="enum" default="4" lvalues="30013|30014|30015|30016|30017"/>
+        <setting label="30008" id="UseInputstream" type="bool" default="true"/>
+        <setting label="30002" id="LogLevel" type="enum" default="3" lvalues="30009|30010|30011|30012"/>
+        <setting label="30003" id="Debug" type="bool" default="false"/>
     </category>
 </settings>

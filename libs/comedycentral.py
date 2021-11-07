@@ -269,6 +269,7 @@ class CC(object):
 
         for item in items:
             if 'loadingTitle' in item:
+                # NEXT PAGE
                 yield {
                     'label': item['title'],
                     'params': {
@@ -533,22 +534,23 @@ class CC(object):
         ytInfo = self.cache.get(
             'yt-dlpInfos, [%s]' % mgid or url, json_data=True)
         videoInfo = self.cache.get(
-            'Items, url = %s' % url, json_data=True
-            ) or {'videoInfo': None}
+            'Items, url = %s' % url, json_data=True) or {'videoInfo': None}
 
         if not ytInfo:
             try:
                 ytInfo = yt_dlp.YoutubeDL().extract_info(mgid or url)
+                # force ytInfo conversion to prevent simplecache errors
+                import ast
+                ytInfo = ast.literal_eval(str(dict(ytInfo)))
+                self.cache.set(
+                    'yt-dlpInfos, [%s]' % mgid or url, ytInfo,
+                    expiration=datetime.timedelta(hours=2), json_data=True)
             except:
                 ytInfo = None
 
-            self.cache.set(
-                'yt-dlpInfos, [%s]' % mgid or url, ytInfo,
-                expiration=datetime.timedelta(hours=2), json_data=True)
-
         if ytInfo is None:
             addonutils.notify(addonutils.LANGUAGE(30007))
-            self._log('getPlayItems, ydl.extract_info=None', 3)
+            self._log('getMediaUrl, ydl.extract_info=None', 3)
             addonutils.endScript(exit=False)
         if ytInfo.get('_type') != 'playlist':
             addonutils.notify('_type not supported. See _log.')
@@ -558,7 +560,8 @@ class CC(object):
         for video in ytInfo.get('entries') or []:
             vidIDX = video.get('playlist_index') or video.get('playlist_autonumber')
             label = '%s - Act %d' % (name, vidIDX)
-            if len(ytInfo) == 1:
+            # if video is single do not add Act X to the title
+            if video.get('n_entries') == 1:
                 label = name
             subs = None
             try:

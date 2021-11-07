@@ -8,9 +8,10 @@ class ComedyCentral(object):
 
     def __init__(self):
         self.cc = CC()
+        self._ISA = addonutils.getSettingAsBool('UseInputStream')
 
     def addItems(self, items):
-        episodes = False
+        episodes = True
         tvshows = True
         seasons = True
         for item in items or []:
@@ -72,6 +73,14 @@ class ComedyCentral(object):
                         label=item['label'], path=item['url'],
                         videoInfo=item['videoInfo'], subs=item.get('subs'),
                         arts=item.get('arts'), isFolder=False)
+                    if self._ISA:
+                        import inputstreamhelper
+                        is_helper = inputstreamhelper.Helper('hls')
+                        if is_helper.check_inputstream():
+                            liz.setContentLookup(False)
+                            liz.setMimeType('application/vnd.apple.mpegurl')
+                            liz.setProperty('inputstream', is_helper.inputstream_addon)
+                            liz.setProperty('inputstream.adaptive.manifest_type', 'hls')
                     if vidIDX == 0:
                         addonutils.setResolvedUrl(item=liz, exit=False)
                     plst.add(item['url'], liz, vidIDX)

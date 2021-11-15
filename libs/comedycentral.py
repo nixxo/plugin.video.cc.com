@@ -534,7 +534,8 @@ class CC(object):
         ytInfo = self.cache.get(
             'yt-dlpInfos, [%s]' % mgid or url, json_data=True)
         videoInfo = self.cache.get(
-            'Items, url = %s' % url, json_data=True) or {'videoInfo': None}
+            'Items, url = %s' % url, json_data=True
+            ) or {'videoInfo': None}
 
         if not ytInfo:
             try:

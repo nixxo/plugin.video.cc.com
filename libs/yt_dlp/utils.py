@@ -27,11 +27,9 @@ import random
 import re
 import socket
 import ssl
-import subprocess
 import sys
 import time
 import traceback
-import xml.etree.ElementTree
 import zlib
 
 from .compat import (
@@ -53,14 +51,9 @@ from .compat import (
     compat_urllib_parse,
     compat_urllib_parse_urlencode,
     compat_urllib_parse_urlparse,
-    compat_urllib_parse_unquote_plus,
     compat_urllib_request,
     compat_urlparse,
     compat_xpath,
-)
-
-from .socks import (
-    ProxyType,
 )
 
 
@@ -1989,6 +1982,7 @@ def orderedSet(iterable):
             res.append(el)
     return res
 
+
 def decodeOption(optval):
     if optval is None:
         return optval
@@ -2007,6 +2001,21 @@ def formatSeconds(secs, delim=':', msec=False):
     else:
         ret = '%d' % secs
     return '%s.%03d' % (ret, secs % 1) if msec else ret
+
+
+def _ssl_load_windows_store_certs(ssl_context, storename):
+    # Code adapted from _load_windows_store_certs in https://github.com/python/cpython/blob/main/Lib/ssl.py
+    try:
+        certs = [cert for cert, encoding, trust in ssl.enum_certificates(storename)
+                 if encoding == 'x509_asn' and (
+                     trust is True or ssl.Purpose.SERVER_AUTH.oid in trust)]
+    except PermissionError:
+        return
+    for cert in certs:
+        try:
+            ssl_context.load_verify_locations(cadata=cert)
+        except ssl.SSLError:
+            pass
 
 
 def make_HTTPS_handler(params, **kwargs):
@@ -2034,7 +2043,14 @@ def make_HTTPS_handler(params, **kwargs):
 
 class YoutubeDLError(Exception):
     """Base exception for YoutubeDL errors."""
-    pass
+    msg = None
+
+    def __init__(self, msg=None):
+        if msg is not None:
+            self.msg = msg
+        elif self.msg is None:
+            self.msg = type(self).__name__
+        super().__init__(self.msg)
 
 
 network_exceptions = [compat_urllib_error.URLError, compat_http_client.HTTPException, socket.error]
@@ -2119,7 +2135,7 @@ class EntryNotInPlaylist(YoutubeDLError):
     This exception will be thrown by YoutubeDL when a requested entry
     is not found in the playlist info_dict
     """
-    pass
+    msg = 'Entry not found in info'
 
 
 class SameFileError(YoutubeDLError):
@@ -2128,7 +2144,12 @@ class SameFileError(YoutubeDLError):
     This exception will be thrown by FileDownloader objects if they detect
     multiple files would have to be downloaded to the same file on disk.
     """
-    pass
+    msg = 'Fixed output name but more than one file to download'
+
+    def __init__(self, filename=None):
+        if filename is not None:
+            self.msg += f': {filename}'
+        super().__init__(self.msg)
 
 
 class PostProcessingError(YoutubeDLError):
@@ -2309,11 +2330,6 @@ class YoutubeDLHandler(compat_urllib_request.HTTPHandler):
     def http_open(self, req):
         conn_class = compat_http_client.HTTPConnection
 
-        socks_proxy = req.headers.get('Ytdl-socks-proxy')
-        if socks_proxy:
-            conn_class = make_socks_conn_class(conn_class, socks_proxy)
-            del req.headers['Ytdl-socks-proxy']
-
         return self.do_open(functools.partial(
             _create_http_connection, self, conn_class, False),
             req)
@@ -2409,49 +2425,6 @@ class YoutubeDLHandler(compat_urllib_request.HTTPHandler):
     https_response = http_response
 
 
-def make_socks_conn_class(base_class, socks_proxy):
-    assert issubclass(base_class, (
-        compat_http_client.HTTPConnection, compat_http_client.HTTPSConnection))
-
-    url_components = compat_urlparse.urlparse(socks_proxy)
-    if url_components.scheme.lower() == 'socks5':
-        socks_type = ProxyType.SOCKS5
-    elif url_components.scheme.lower() in ('socks', 'socks4'):
-        socks_type = ProxyType.SOCKS4
-    elif url_components.scheme.lower() == 'socks4a':
-        socks_type = ProxyType.SOCKS4A
-
-    def unquote_if_non_empty(s):
-        if not s:
-            return s
-        return compat_urllib_parse_unquote_plus(s)
-
-    proxy_args = (
-        socks_type,
-        url_components.hostname, url_components.port or 1080,
-        True,  # Remote DNS
-        unquote_if_non_empty(url_components.username),
-        unquote_if_non_empty(url_components.password),
-    )
-
-    class SocksConnection(base_class):
-        def connect(self):
-            self.sock = sockssocket()
-            self.sock.setproxy(*proxy_args)
-            if type(self.timeout) in (int, float):
-                self.sock.settimeout(self.timeout)
-            self.sock.connect((self.host, self.port))
-
-            if isinstance(self, compat_http_client.HTTPSConnection):
-                if hasattr(self, '_context'):  # Python > 2.6
-                    self.sock = self._context.wrap_socket(
-                        self.sock, server_hostname=self.host)
-                else:
-                    self.sock = ssl.wrap_socket(self.sock)
-
-    return SocksConnection
-
-
 class YoutubeDLHTTPSHandler(compat_urllib_request.HTTPSHandler):
     def __init__(self, params, https_conn_class=None, *args, **kwargs):
         compat_urllib_request.HTTPSHandler.__init__(self, *args, **kwargs)
@@ -2466,11 +2439,6 @@ class YoutubeDLHTTPSHandler(compat_urllib_request.HTTPSHandler):
             kwargs['context'] = self._context
         if hasattr(self, '_check_hostname'):  # python 3.x
             kwargs['check_hostname'] = self._check_hostname
-
-        socks_proxy = req.headers.get('Ytdl-socks-proxy')
-        if socks_proxy:
-            conn_class = make_socks_conn_class(conn_class, socks_proxy)
-            del req.headers['Ytdl-socks-proxy']
 
         return self.do_open(functools.partial(
             _create_http_connection, self, conn_class, True),
@@ -3503,46 +3471,6 @@ def replace_extension(filename, ext, expected_real_ext=None):
     return '{0}.{1}'.format(
         name if not expected_real_ext or real_ext[1:] == expected_real_ext else filename,
         ext)
-
-
-def check_executable(exe, args=[]):
-    """ Checks if the given binary is installed somewhere in PATH, and returns its name.
-    args can be a list of arguments for a short output (like -version) """
-    try:
-        Popen([exe] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate_or_kill()
-    except OSError:
-        return False
-    return exe
-
-
-def get_exe_version(exe, args=['--version'],
-                    version_re=None, unrecognized='present'):
-    """ Returns the version of the specified executable,
-    or False if the executable is not present """
-    try:
-        # STDIN should be redirected too. On UNIX-like systems, ffmpeg triggers
-        # SIGTTOU if yt-dlp is run in the background.
-        # See https://github.com/ytdl-org/youtube-dl/issues/955#issuecomment-209789656
-        out, _ = process_communicate_or_kill(subprocess.Popen(
-            [encodeArgument(exe)] + args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT))
-    except OSError:
-        return False
-    if isinstance(out, bytes):  # Python 2.x
-        out = out.decode('ascii', 'ignore')
-    return detect_exe_version(out, version_re, unrecognized)
-
-
-def detect_exe_version(output, version_re=None, unrecognized='present'):
-    assert isinstance(output, compat_str)
-    if version_re is None:
-        version_re = r'version\s+([-0-9._a-zA-Z]+)'
-    m = re.search(version_re, output)
-    if m:
-        return m.group(1)
-    else:
-        return unrecognized
 
 
 class LazyList(collections.abc.Sequence):

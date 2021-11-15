@@ -7,7 +7,6 @@ __license__ = 'Public Domain'
 
 import codecs
 import os
-import random
 import sys
 
 from .options import (
@@ -24,7 +23,6 @@ from .utils import (
     preferredencoding,
     RejectedVideoReached,
     SameFileError,
-    write_string,
 )
 from .extractor import gen_extractors, list_extractors
 
@@ -83,7 +81,7 @@ def _real_main(argv=None):
     }
 
     with YoutubeDL(ydl_opts) as ydl:
-        actual_use = len(all_urls) or opts.load_info_filename
+        actual_use = len(all_urls)
 
         # Maybe do nothing
         if not actual_use:
@@ -106,15 +104,15 @@ def main(argv=None):
         _real_main(argv)
     except DownloadError:
         sys.exit(1)
-    except SameFileError:
-        sys.exit('ERROR: fixed output name but more than one file to download')
+    except SameFileError as e:
+        sys.exit(f'ERROR: {e}')
     except KeyboardInterrupt:
         sys.exit('\nERROR: Interrupted by user')
-    except BrokenPipeError:
+    except BrokenPipeError as e:
         # https://docs.python.org/3/library/signal.html#note-on-sigpipe
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
-        sys.exit(r'\nERROR: {err}')
+        sys.exit(f'\nERROR: {e}')
 
 
 __all__ = ['main', 'YoutubeDL', 'gen_extractors', 'list_extractors']

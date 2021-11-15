@@ -4,35 +4,26 @@
 from __future__ import absolute_import, unicode_literals
 
 import collections
-import contextlib
 import copy
 import datetime
 import errno
-import fileinput
 import functools
 import io
 import itertools
 import json
-import operator
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
 import tokenize
 import traceback
 import random
-import unicodedata
 
-from string import ascii_letters
 
 from .compat import (
     compat_basestring,
-    compat_get_terminal_size,
     compat_numeric_types,
-    compat_os_name,
-    compat_shlex_quote,
     compat_str,
     compat_tokenize_tokenize,
     compat_urllib_error,
@@ -41,18 +32,14 @@ from .compat import (
 )
 from .utils import (
     args_to_str,
-    DEFAULT_OUTTMPL,
     determine_ext,
     DownloadError,
     encode_compat_str,
     EntryNotInPlaylist,
     error_to_compat_str,
     ExistingVideoReached,
-    expand_path,
     ExtractorError,
-    float_or_none,
     format_field,
-    formatSeconds,
     GeoRestrictedError,
     HEADRequest,
     int_or_none,
@@ -62,11 +49,9 @@ from .utils import (
     MaxDownloadsReached,
     network_exceptions,
     orderedSet,
-    OUTTMPL_TYPES,
     PagedList,
     PerRequestProxyHandler,
     PostProcessingError,
-    preferredencoding,
     register_socks_protocols,
     RejectedVideoReached,
     replace_extension,
@@ -96,9 +81,6 @@ from .extractor import (
     gen_extractor_classes,
     get_info_extractor,
 )
-
-if compat_os_name == 'nt':
-    import ctypes
 
 
 class YoutubeDL(object):
@@ -177,10 +159,7 @@ class YoutubeDL(object):
                 'Set the LC_ALL environment variable to fix this.')
             self.params['restrictfilenames'] = True
 
-        # Creating format selector here allows us to catch syntax errors before the extraction
-        self.format_selector = (
-            None if self.params.get('format') is None
-            else self.build_format_selector(self.params['format']))
+        self.format_selector = None
 
         self._setup_opener()
 
@@ -483,7 +462,6 @@ class YoutubeDL(object):
                 self.report_warning('The program functionality for this site has been marked as broken, '
                                     'and will probably not work.')
 
-            temp_id = ie.get_temp_id(url)
             return self.__extract_info(url, self.get_info_extractor(ie_key), download, extra_info, process)
         else:
             self.report_error('no suitable InfoExtractor for URL %s' % url)
@@ -499,10 +477,6 @@ class YoutubeDL(object):
                 self.report_error(msg)
             except ExtractorError as e:  # An error we somewhat expected
                 self.report_error(compat_str(e), e.format_traceback())
-            except ThrottledDownload:
-                self.to_stderr('\r')
-                self.report_warning('The download speed is below throttle limit. Re-extracting data')
-                return wrapper(self, *args, **kwargs)
             except (MaxDownloadsReached, ExistingVideoReached, RejectedVideoReached, LazyList.IndexError):
                 raise
             except Exception as e:
@@ -668,16 +642,13 @@ class YoutubeDL(object):
         else:
             raise Exception('Invalid result type: %s' % result_type)
 
-    def _ensure_dir_exists(self, path):
-        return make_dir(path, self.report_error)
-
     def __process_playlist(self, ie_result, download):
         # We process each entry in the playlist
         playlist = ie_result.get('title') or ie_result.get('id')
         self.to_screen('[download] Downloading playlist: %s' % playlist)
 
         if 'entries' not in ie_result:
-            raise EntryNotInPlaylist()
+            raise EntryNotInPlaylist('There are no entries')
         incomplete_entries = bool(ie_result.get('requested_entries'))
         if incomplete_entries:
             def fill_missing_entries(entries, indexes):
@@ -717,7 +688,7 @@ class YoutubeDL(object):
             def get_entry(i):
                 return ie_entries[i - 1]
         else:
-            if not isinstance(ie_entries, PagedList):
+            if not isinstance(ie_entries, (PagedList, LazyList)):
                 ie_entries = LazyList(ie_entries)
 
             def get_entry(i):
@@ -856,9 +827,6 @@ class YoutubeDL(object):
         SINGLE = 'SINGLE'
         GROUP = 'GROUP'
         FormatSelector = collections.namedtuple('FormatSelector', ['type', 'selector', 'filters'])
-
-        allow_multiple_streams = {'audio': self.params.get('allow_multiple_audio_streams', False),
-                                  'video': self.params.get('allow_multiple_video_streams', False)}
 
         check_formats = self.params.get('check_formats')
 
@@ -1078,7 +1046,7 @@ class YoutubeDL(object):
                         except IndexError:
                             return
 
-            filters = selector.filters
+            filters = [self._build_format_filter(f) for f in selector.filters]
 
             def final_selector(ctx):
                 ctx_copy = copy.deepcopy(ctx)
@@ -1342,10 +1310,6 @@ class YoutubeDL(object):
                     res=self.format_resolution(format),
                     note=format_field(format, 'format_note', ' (%s)'),
                 )
-            # Automatically determine protocol if missing (useful for format
-            # selection purposes)
-            if format.get('protocol') is None:
-                format['protocol'] = determine_protocol(format)
             # Add HTTP headers, so that external programs can use them from the
             # json output
             full_format_info = info_dict.copy()
@@ -1681,4 +1645,3 @@ class YoutubeDL(object):
         # (See https://github.com/ytdl-org/youtube-dl/issues/1309 for details)
         opener.addheaders = []
         self._opener = opener
-

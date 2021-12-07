@@ -1,0 +1,4 @@
+[submodule "resources/lib/yt_dlp"]
+	path = resources/lib/yt_dlp
+	url = git@github.com:nixxo/yt-dlp.git
+	branch = cc-only

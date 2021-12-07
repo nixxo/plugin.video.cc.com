@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from libs.comedycentral import CC
-from libs import addonutils
+from resources.lib.comedycentral import CC
+from resources.lib import addonutils
 import xbmc
 
 

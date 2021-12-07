@@ -7,7 +7,7 @@ import xbmcgui
 
 from simplecache import SimpleCache
 
-from libs import addonutils
+from resources.lib import addonutils
 
 
 class CC(object):

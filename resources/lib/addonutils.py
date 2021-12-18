@@ -78,7 +78,7 @@ def setSetting(setting, value):
     ADDON.setSetting(id=setting, value=str(value))
 
 
-def showOkDialog(heading, line):
+def showOkDialog(line, heading=NAME):
     xbmcgui.Dialog().ok(heading, line)
 
 

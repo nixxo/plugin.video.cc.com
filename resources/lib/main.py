@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from resources.lib.comedycentral import CC
 from resources.lib import addonutils
+from resources.lib.comedycentral import CC
 import xbmc
 
 
@@ -9,6 +9,7 @@ class ComedyCentral(object):
     def __init__(self):
         self.cc = CC()
         self._ISA = addonutils.getSettingAsBool('UseInputStream')
+        self._FISA = addonutils.getSettingAsBool('ForceInputstream')
 
     def addItems(self, items):
         episodes = True
@@ -45,24 +46,23 @@ class ComedyCentral(object):
                 addonutils.setContent('tvshows')
 
             elif params['mode'] == 'GENERIC':
-                generic = self.cc.genericList(params['name'], params['url'])
+                generic = self.cc.genericList(params.get('name'), params['url'])
                 self.addItems(generic)
 
             elif params['mode'] == 'SEASON':
-                show = self.cc.loadShows(params['name'], params['url'], True)
+                show = self.cc.loadShows(params.get('name'), params['url'], True)
                 self.addItems(show)
 
             elif params['mode'] == 'EPISODES':
-                episodes = self.cc.loadItems(params['name'], params['url'])
+                episodes = self.cc.loadItems(params.get('name'), params['url'])
                 self.addItems(episodes)
                 addonutils.setContent('episodes')
 
             elif params['mode'] == 'PLAY':
-                if self.cc.PTVL_RUNNING:
-                    return addonutils.notify(addonutils.LANGUAGE(30007))
+                select_quality = not self._ISA or (self._ISA and self._FISA)
                 playItems = self.cc.getMediaUrl(
                     params['name'], params['url'],
-                    params.get('mgid'))
+                    params.get('mgid'), select_quality)
                 plst = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
                 plst.clear()
                 xbmc.sleep(200)

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.cc.com" version="0.0.5" name="Comedy Central" provider-name="nixxo">
+<addon id="plugin.video.cc.com" version="0.0.6" name="Comedy Central" provider-name="nixxo">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
-        <import addon="script.module.simplecache" version="1.0.0"/>
+        <import addon="script.module.simplecache" version="2.0.0"/>
         <import addon="script.module.inputstreamhelper" version="0.5.8" optional="true"/>
         <import addon="script.module.web-pdb" version="1.5.6" optional="true"/>
     </requires>
@@ -16,7 +16,13 @@
         <license>GNU GENERAL PUBLIC LICENSE. Version 3, June 2007</license>
         <source>https://github.com/nixxo/plugin.video.cc.com</source>
         <website>https://www.cc.com/</website>
-        <news>[B]v0.0.5[/B]
+        <news>[B]v0.0.6[/B]
+- improved translations
+- made settings.xml with kodi19 conventions
+- implemented better quality selection
+- added "Full Episodes" menu item
+
+[B]v0.0.5[/B]
 - added inputstream helper option
 - fixed single video title
 - settings cleanup

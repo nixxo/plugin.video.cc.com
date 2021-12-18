@@ -9,7 +9,6 @@ from simplecache import SimpleCache
 from resources.lib import addonutils
 from resources.lib.translate import translatedString as T
 
-import web_pdb
 
 TIMEOUT = 15
 QUALITY = addonutils.getSettingAsInt('Quality')
@@ -325,7 +324,7 @@ class CC(object):
             self._log('genericList, using method = %s' % str(method))
             yield from method(name, url)
         except:
-            addonutils.notify(T('error.generic'))
+            addonutils.notify(T('error.openurl'))
             self._log('genericList, URL not supported: %s' % url, 3)
             addonutils.endScript()
 
@@ -398,8 +397,6 @@ class CC(object):
         for item in self._extractItems(items) or []:
             if not item:
                 continue
-            web_pdb.set_trace()
-            # if 'loadingTitle' in item:
             if item.get('title') == 'Load More':
                 label = T('load.more')
                 yield {
@@ -421,6 +418,9 @@ class CC(object):
             if name == T('digital.original') and item.get('cardType') == 'promo':
                 continue
 
+            if not item.get('url') or not item.get('title'):
+                continue
+
             label = item['title']
             # playable is determined by the url not being in the parsable pages
             playable = not any(('/%s/' % x) in item['url'] for x in PAGES_CRUMB)
@@ -435,11 +435,12 @@ class CC(object):
                     'mediatype': 'video' if playable else 'tvshow',
                     'title': label,
                     'tvshowtitle': item['meta']['label'],
+                    'duration': self._getDuration(item['media'].get('duration')),
                 },
                 'arts': self._createInfoArt(item['media']['image']['url']),
                 'playable': playable,
             }
-            if infos['params']['mode'] == 'PLAY':
+            if playable:
                 self.cache.set(
                     '%s_videoInfo[%s]' % (addonutils.ID, infos['params']['url']), infos['videoInfo'],
                     expiration=datetime.timedelta(hours=2), json_data=True)

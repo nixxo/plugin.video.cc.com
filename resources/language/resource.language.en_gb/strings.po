@@ -99,7 +99,7 @@ msgid "_type not supported. See log."
 msgstr ""
 
 msgctxt "#41001"
-msgid "Use InputStream Adaptive ad let it manage quality."
+msgid "Use InputStream Adaptive and let it manage quality."
 msgstr ""
 
 msgctxt "#41002"

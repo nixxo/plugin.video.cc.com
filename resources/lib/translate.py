@@ -19,5 +19,5 @@ def translatedString(id):
     t_string = T_MAP.get(id)
     if t_string:
         return LANGUAGE(t_string)
-    log('%s translation ID not found.' & id)
+    log('%s translation ID not found.' % id, 3)
     return 'NO TRANSLATION AVAILABLE'

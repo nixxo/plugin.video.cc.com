@@ -20,26 +20,26 @@ LANG = addonutils.LANGUAGE
 MAIN_MENU = [{
     'label': T('shows'),
     'params': {
-        'url': BASE_URL + '/api/shows/1/40',
+        'url': f"{BASE_URL}/api/shows/1/40",
         'mode': 'SHOWS',
     },
 }, {
     'label': T('full.episodes'),
     'params': {
-        'url': BASE_URL + '/api/episodes/1/40',
+        'url': f"{BASE_URL}/api/episodes/1/40",
         'mode': 'EPISODES',
     },
 }, {
     'label': T('standup'),
     'params': {
-        'url': BASE_URL + '/topic/stand-up',
+        'url': f"{BASE_URL}/topic/stand-up",
         'mode': 'GENERIC',
         'name': T('standup'),
     },
 }, {
     'label': T('digital.original'),
     'params': {
-        'url': BASE_URL + '/topic/digital-originals',
+        'url': f"{BASE_URL}/topic/digital-originals",
         'mode': 'GENERIC',
         'name': T('digital.original'),
     },
@@ -122,7 +122,7 @@ class CC(object):
 
         if url.startswith('http'):
             return url
-        return BASE_URL + url
+        return f"{BASE_URL}url"
 
     def _createInfoArt(self, image=False, fanart=False):
         """
@@ -549,7 +549,7 @@ class CC(object):
         self._log(f"getMediaUrl, url = {url}, mgid = {mgid}")
         self._log(f"yt-dlp version: {yt_dlp.version.__version__}")
         if mgid and not mgid.startswith('mgid'):
-            mgid = BASE_MGID + mgid
+            mgid = f"{BASE_MGID}{mgid}"
 
         ytInfo = self.cache.get(
             f"{addonutils.ID}_ytInfo[{mgid or url}]")

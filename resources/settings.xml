@@ -29,6 +29,14 @@
                         </options>
                     </constraints>
                     <control type="spinner" format="string"/>
+                    <dependencies>
+                        <dependency type="enable">
+                            <or>
+                                <condition setting="UseInputstream">false</condition>
+                                <condition setting="ForceInputstream">true</condition>
+                            </or>
+                        </dependency>
+                    </dependencies>
                 </setting>
             </group>
             <group id="debug" label="31010">

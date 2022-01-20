@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 import datetime
 import re
 import json
-import urllib.request as urllib2
+import requests
 
 from simplecache import SimpleCache
 
@@ -27,9 +26,8 @@ MAIN_MENU = [{
 }, {
     'label': T('full.episodes'),
     'params': {
-        'url': BASE_URL + '/api/episodes/1/20',
+        'url': BASE_URL + '/api/episodes/1/40',
         'mode': 'EPISODES',
-        'name': T('full.episodes'),
     },
 }, {
     'label': T('standup'),
@@ -73,30 +71,36 @@ class CC(object):
 
     def _openURL(self, url, hours=24):
         """
-        Get url content from the web or from the cache.
+        Get url content from cache or from source
+        depending if cache is available or not.
 
         :param      url:    The url
         :type       url:    str
-        :param      hours:  cache retention time
+        :param      hours:  cache retention period in hours
         :type       hours:  int
 
         :returns:   url content
         :rtype:     str
         """
-        self._log('_openURL, url = %s' % url, 1)
+        self._log(f"openURL, url = {url}", 1)
         try:
             cacheresponse = self.cache.get(
-                '%s_openURL[%s]' % (addonutils.ID, url))
+                f"{addonutils.ID}._openURL, url = {url}")
             if not cacheresponse:
-                request = urllib2.Request(url)
-                response = urllib2.urlopen(request, timeout=TIMEOUT).read()
-                self.cache.set(
-                    '%s_openURL[%s]' % (addonutils.ID, url),
-                    response,
-                    expiration=datetime.timedelta(hours=hours))
-            return self.cache.get('%s_openURL[%s]' % (addonutils.ID, url))
+                self._log('openURL, no cache found')
+                response = requests.get(url, timeout=TIMEOUT)
+                if response.status_code == requests.codes.ok:
+                    response.encoding = 'utf-8'
+                    self.cache.set(
+                        f"{addonutils.ID}._openURL, url = {url}",
+                        response.text,
+                        expiration=datetime.timedelta(hours=hours))
+                else:
+                    response.raise_for_status()
+            return self.cache.get(f"{addonutils.ID}._openURL, url = {url}")
         except Exception as e:
-            self._log("_openURL Failed! " + str(e), 3)
+            self.cache = None
+            self._log(f"openURL Failed! {e}", 3)
             addonutils.notify(T('error.openurl'))
             addonutils.endScript()
 
@@ -132,8 +136,8 @@ class CC(object):
         :returns:   infoart
         :rtype:     list
         """
-        self._log('_createInfoArt, image = %s; fanart = %s' % (str(image), str(fanart)), 1)
-        thumb = image + '&width=512&crop=false' if image else None
+        self._log(f"_createInfoArt, image = {image}; fanart = {fanart}", 1)
+        thumb = f"{image}&width=512&crop=false" if image else None
         return {
             'thumb': thumb,
             'poster': thumb,
@@ -155,11 +159,10 @@ class CC(object):
         :returns:   Json data extarcted
         :rtype:     json
         """
-        self._log('_loadJsonData, url = %s' % url, 1)
+        self._log(f"_loadJsonData, url = {url}", 1)
         response = self._openURL(url, hours=hours)
         if len(response) == 0:
             return
-        response = response.decode('utf-8')
 
         try:
             # check if the file is json
@@ -171,7 +174,7 @@ class CC(object):
                 items = json.loads(src)
             except Exception as e:
                 addonutils.notify(T('error.no.json'))
-                self._log('_loadJsonData, NO JSON DATA FOUND' + str(e), 3)
+                self._log(f"_loadJsonData, NO JSON DATA FOUND: {e}", 3)
                 addonutils.endScript()
 
         return items
@@ -191,7 +194,7 @@ class CC(object):
         :returns:   extracted data
         :rtype:     json
         """
-        self._log('_extractItemType, type = %s; ext = %s' % (type, ext), 1)
+        self._log(f"_extractItemType, type = {type}; ext = {ext}", 1)
         items = [x.get(ext) for x in data if x.get('type') == type]
         return items[0] if len(items) > 0 and isinstance(items[0], list) else items
 
@@ -213,7 +216,7 @@ class CC(object):
                 items.extend([item['props'].get('loadMore')] or [])
             if item.get('type') == 'Fragment':
                 items.extend(self._extractItems(item.get('children')) or [])
-        self._log('_extractItems, items extracted = %d' % len(items), 1)
+        self._log(f"_extractItems, items extracted = {len(items)}", 1)
         return items
 
     def _getDuration(self, duration):
@@ -241,7 +244,7 @@ class CC(object):
             mm, dd, yy = re.match(r'(\d{2})/(\d{2})/(\d{4})', date).groups()
         except:
             mm, dd, yy = '01,01,2000'.split(',')
-        return '%s-%s-%s' % (yy, mm, dd)
+        return f"{yy}-{mm}-{dd}"
 
     def getMainMenu(self):
         """
@@ -263,7 +266,7 @@ class CC(object):
         :returns:   listitem items
         :rtype:     dict
         """
-        self._log('showsList, url = %s' % url, 1)
+        self._log(f"showsList, url = {url}", 1)
         items = self._loadJsonData(url)
         if 'items' in items:
             items['items'].extend([items.get('loadMore')] or [])
@@ -316,21 +319,21 @@ class CC(object):
         :param      url:   url to process
         :type       url:   str
         """
-        self._log('genericList, name = %s, url = %s' % (name, url), 1)
+        self._log(f"genericList, name = {name}, url = {url}", 1)
         try:
             mtc = re.search(r'(/%s/)' % '/|/'.join(PAGES_CRUMB), url).group(1)
             name_of_method = "load%s" % mtc.strip('/').capitalize()
             method = getattr(self, name_of_method)
-            self._log('genericList, using method = %s' % str(method))
+            self._log(f"genericList, using method = {method}")
             yield from method(name, url)
-        except:
+        except Exception as e:
             addonutils.notify(T('error.openurl'))
-            self._log('genericList, URL not supported: %s' % url, 3)
+            self._log(f"genericList, URL not supported: {url}", 3)
+            self._log(f"error: {e}", 3)
             addonutils.endScript()
 
     def loadShows(self, name, url, season=False):
-        self._log('loadShows, name = %s, url = %s, season = %s' % (
-            name, url, str(season)), 1)
+        self._log(f"loadShows, name = {name}, url = {url}, season = {season}", 1)
         items = self._loadJsonData(url)
         if not season:
             items = self._extractItemType(
@@ -387,20 +390,18 @@ class CC(object):
         :param      url:   The url
         :type       url:   str
         """
-        self._log('loadTopic, name = %s, url = %s' % (name, url))
+        self._log(f"loadTopic, name = {name}, url = {url}")
         items = self._loadJsonData(url)
         items = self._extractItemType(
             items.get('children') or [],
             'MainContainer',
             'children')
-
         for item in self._extractItems(items) or []:
             if not item:
                 continue
-            if item.get('title') == 'Load More':
-                label = T('load.more')
+            if 'loadingTitle' in item:
                 yield {
-                    'label': label,
+                    'label': T('load.more'),
                     'params': {
                         'mode': 'EPISODES',
                         'url': self._createURL(item['url']),
@@ -423,7 +424,9 @@ class CC(object):
 
             label = item['title']
             # playable is determined by the url not being in the parsable pages
-            playable = not any(('/%s/' % x) in item['url'] for x in PAGES_CRUMB)
+            playable = not any((f"/{x}/") in item['url'] for x in PAGES_CRUMB)
+            media = item.get('media') or {}
+            image = media.get('image') or {}
             infos = {
                 'label': label,
                 'params': {
@@ -435,15 +438,18 @@ class CC(object):
                     'mediatype': 'video' if playable else 'tvshow',
                     'title': label,
                     'tvshowtitle': item['meta']['label'],
-                    'duration': self._getDuration(item['media'].get('duration')),
+                    'duration': self._getDuration(media.get('duration')),
                 },
-                'arts': self._createInfoArt(item['media']['image']['url']),
+                'arts': self._createInfoArt(image.get('url')),
                 'playable': playable,
             }
+
             if playable:
                 self.cache.set(
-                    '%s_videoInfo[%s]' % (addonutils.ID, infos['params']['url']), infos['videoInfo'],
-                    expiration=datetime.timedelta(hours=2), json_data=True)
+                    f"{addonutils.ID}_videoInfo[{infos['params']['url']}]",
+                    [infos['videoInfo'], infos['arts']],
+                    expiration=datetime.timedelta(hours=2),
+                    json_data=True)
             yield infos
 
     def loadItems(self, name, url):
@@ -458,9 +464,8 @@ class CC(object):
         :returns:   items
         :rtype:     list
         """
-        self._log('loadItems, name = %s, url = %s' % (name, url))
+        self._log(f"loadItems, name = {name}, url = {url}")
         items = self._loadJsonData(url, hours=1)
-
         for item in items.get('items') or []:
             if item.get('cardType') == 'ad':
                 continue
@@ -471,7 +476,7 @@ class CC(object):
                     label = meta['header']['title']
                 else:
                     label = meta['header']['title'].get('text') or ''
-                label = '%s - %s' % (label, sub) if sub else label
+                label = f"{label} - {sub}" if sub else label
             except:
                 label = 'NO TITLE'
             try:
@@ -482,7 +487,9 @@ class CC(object):
             except:
                 season, episode = None, None
 
-            tvshowtitle = meta.get('label') if name == 'None' else name
+            tvshowtitle = name or meta.get('label')
+            media = item.get('media') or {}
+            image = media.get('image') or {}
             infos = {
                 'label': label,
                 'params': {
@@ -498,16 +505,17 @@ class CC(object):
                     'plot': meta.get('description'),
                     'season': season,
                     'episode': episode,
-                    'duration': self._getDuration(item['media'].get('duration')),
+                    'duration': self._getDuration(media.get('duration')),
                     'aired': self._getDate(meta.get('date')),
                 },
-                'arts': self._createInfoArt(item['media']['image']['url']),
+                'arts': self._createInfoArt(image.get('url')),
                 'playable': True,
             }
             self.cache.set(
-                '%s_videoInfo[%s]' % (addonutils.ID, infos['params']['url']),
-                infos['videoInfo'],
-                expiration=datetime.timedelta(hours=2), json_data=True)
+                f"{addonutils.ID}_videoInfo[{infos['params']['url']}]",
+                [infos['videoInfo'], infos['arts']],
+                expiration=datetime.timedelta(hours=2),
+                json_data=True)
             yield infos
 
         if items.get('loadMore'):
@@ -518,9 +526,6 @@ class CC(object):
                     # replace necessary to urlencode only ":"
                     'url': self._createURL(items['loadMore']['url'].replace(':', '%3A')),
                     'name': name,
-                },
-                'videoInfo': {
-                    'tvshowtitle': name
                 },
                 'arts': self._createInfoArt(),
             }
@@ -541,22 +546,22 @@ class CC(object):
         """
         from resources.lib import yt_dlp
 
-        self._log('getMediaUrl, url=%s, mgid=%s' % (url, str(mgid)))
-        self._log('yt-dlp version: %s' % yt_dlp.version.__version__)
+        self._log(f"getMediaUrl, url = {url}, mgid = {mgid}")
+        self._log(f"yt-dlp version: {yt_dlp.version.__version__}")
         if mgid and not mgid.startswith('mgid'):
             mgid = BASE_MGID + mgid
 
         ytInfo = self.cache.get(
-            '%s_ytInfo[%s]' % (addonutils.ID, mgid or url))
+            f"{addonutils.ID}_ytInfo[{mgid or url}]")
         videoInfo = self.cache.get(
-            '%s_videoInfo[%s]' % (addonutils.ID, url), json_data=True
-            ) or {}
+            f"{addonutils.ID}_videoInfo[{url}]", json_data=True
+            ) or [{},{}]
 
         if not ytInfo:
             try:
                 ytInfo = yt_dlp.YoutubeDL().extract_info(mgid or url)
                 self.cache.set(
-                    '%s_ytInfo[%s]' % (addonutils.ID, mgid or url), ytInfo,
+                    f"{addonutils.ID}_ytInfo[{mgid or url}]", ytInfo,
                     expiration=datetime.timedelta(hours=2))
             except:
                 ytInfo = None
@@ -567,15 +572,12 @@ class CC(object):
             addonutils.endScript(exit=False)
         if ytInfo.get('_type') != 'playlist':
             addonutils.notify(T('error.wrong.type'))
-            self._log('getPlayItems, info type <%s> not supported' % ytInfo['_type'], 3)
+            self._log(f"getPlayItems, info type <{ytInfo['_type']}> not supported", 3)
             addonutils.endScript(exit=False)
 
         for video in ytInfo.get('entries') or []:
             vidIDX = video.get('playlist_index') or video.get('playlist_autonumber')
-            label = '%s - Act %d' % (name, vidIDX)
-            # if video is single do not add Act X to the title
-            if video.get('n_entries') == 1:
-                label = name
+            label = f"{name} - Act {vidIDX}" if video.get('n_entries') > 1 else name
             subs = None
             try:
                 if 'subtitles' in video:
@@ -584,26 +586,27 @@ class CC(object):
             except:
                 pass
 
+            videoInfo[0].update({
+                'title': label,
+                'duration': video.get('duration'),
+            })
+            if video.get('thumbnail'):
+                videoInfo[1].update(self._createInfoArt(video['thumbnail']))
+
             infos = {
                 'idx': vidIDX-1,
                 'url': video.get('url'),
                 'label': label,
-                'videoInfo': videoInfo,
+                'videoInfo': videoInfo[0],
+                'arts': videoInfo[1],
                 'subs': subs,
-                'arts': {
-                    'thumb': video.get('thumbnail'),
-                },
             }
-            infos['videoInfo'].update({
-                'title': label,
-                'duration': video.get('duration'),
-            })
 
             if select_quality:
                 max_height = QUALITIES[QUALITY]
                 for i in range(len(video.get('formats'))-1, 0, -1):
                     if video['formats'][i].get('height') <= max_height:
-                        self._log('getPlaylistContent, quality_found = %s' % video['formats'][i].get('format_id'))
+                        self._log(f"getPlaylistContent, quality_found = {video['formats'][i].get('format_id')}")
                         infos['url'] = video['formats'][i].get('url')
                         break
             yield infos

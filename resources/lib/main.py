@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-
 from resources.lib import addonutils
 from resources.lib.comedycentral import CC
-import xbmc
 
 
 class ComedyCentral(object):
@@ -12,16 +10,10 @@ class ComedyCentral(object):
         self._FISA = addonutils.getSettingAsBool('ForceInputstream')
 
     def addItems(self, items):
-        episodes = True
-        tvshows = True
-        seasons = True
+        media_type = []
         for item in items or []:
-            episodes = all([item.get('playable'), episodes])
             if item.get('videoInfo'):
-                tvshows = all([item['videoInfo'].get('mediatype') == 'tvshow', tvshows])
-                seasons = all([item['videoInfo'].get('mediatype') == 'season', seasons])
-            else:
-                tvshows, seasons = False, False
+                media_type.append(item['videoInfo'].get('mediatype'))
             addonutils.addListItem(
                 label=item.get('label'),
                 label2=item.get('label2'),
@@ -30,12 +22,11 @@ class ComedyCentral(object):
                 videoInfo=item.get('videoInfo'),
                 isFolder=False if item.get('playable') else True,
             )
-        if tvshows:
-            addonutils.setContent('tvshows')
-        elif seasons:
-            addonutils.setContent('seasons')
-        elif episodes:
-            addonutils.setContent('episodes')
+
+        media_type = list(set(media_type))
+        if len(media_type) == 1:
+            addonutils.setContent(f"{media_type[0]}s")
+
 
     def main(self):
         params = addonutils.getParams()
@@ -63,9 +54,7 @@ class ComedyCentral(object):
                 playItems = self.cc.getMediaUrl(
                     params['name'], params['url'],
                     params.get('mgid'), select_quality)
-                plst = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
-                plst.clear()
-                xbmc.sleep(200)
+                plst = addonutils.getPlaylist()
 
                 for item in playItems:
                     vidIDX = item['idx']

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import sys
 from urllib.parse import parse_qsl
@@ -20,7 +19,7 @@ PATH = ADDON.getAddonInfo('path')
 DATA_PATH = ADDON.getAddonInfo('profile')
 PATH_T = xbmcvfs.translatePath(PATH)
 DATA_PATH_T = xbmcvfs.translatePath(DATA_PATH)
-IMAGE_PATH_T = os.path.join(PATH_T, 'resources', 'media', "")
+IMAGE_PATH_T = os.path.join(PATH_T, 'resources', 'media')
 LANGUAGE = ADDON.getLocalizedString
 KODILANGUAGE = xbmc.getLocalizedString
 
@@ -37,8 +36,7 @@ def notify(msg):
 
 def log(msg, level=xbmc.LOGDEBUG):
     # DEBUG = 0, INFO = 1, WARNING = 2, ERROR = 3, FATAL = 4
-    msg = '[%s/%s] %s' % (ID, VERSION, msg)
-    xbmc.log(msg, level=level)
+    xbmc.log(f"[{ID}/{VERSION}] {msg}", level=level)
 
 
 def getParams():
@@ -47,10 +45,13 @@ def getParams():
     return dict(parse_qsl(sys.argv[2][1:]))
 
 
-def parameters(p):
+def parameters(p, host=sys.argv[0]):
     for k, v in list(p.items()):
-        p[k] = v
-    return sys.argv[0] + '?' + urlencode(p)
+        if v:
+            p[k] = v
+        else:
+            p.pop(k, None)
+    return f"{host}?{urlencode(p)}"
 
 
 def getSetting(setting):
@@ -84,14 +85,10 @@ def showOkDialog(line, heading=NAME):
 
 def createListItem(
         label='', params=None, label2=None,
-        thumb=None, fanart=None, poster=None, arts=None,
-        videoInfo=None, properties=None, isFolder=True,
+        thumb=None, fanart=None, poster=None, arts={},
+        videoInfo=None, properties={}, isFolder=True,
         path=None, subs=None):
-    if arts is None:
-        arts = {}
-    if properties is None:
-        properties = {}
-    item = xbmcgui.ListItem(label, label2, path)
+    item = xbmcgui.ListItem(label, label2, path, offscreen=True)
     if thumb:
         arts['thumb'] = thumb
     if fanart:
@@ -111,8 +108,8 @@ def createListItem(
 
 def addListItem(
         label='', params=None, label2=None,
-        thumb=None, fanart=None, poster=None, arts=None,
-        videoInfo=None, properties=None, isFolder=True,
+        thumb=None, fanart=None, poster=None, arts={},
+        videoInfo=None, properties={}, isFolder=True,
         path=None, subs=None):
     if isinstance(params, dict):
         url = parameters(params)
@@ -127,24 +124,27 @@ def addListItem(
         handle=HANDLE, url=url, listitem=item, isFolder=isFolder)
 
 
+def getPlaylist(type=xbmc.PLAYLIST_VIDEO, clear=True):
+    plst = xbmc.PlayList(type)
+    if clear:
+        plst.clear()
+        xbmc.sleep(200)
+    return plst
+
+
 def setResolvedUrl(
-        url='', solved=True, subs=None, headers=None,
-        ins=None, insdata=None, item=None, exit=True):
+        url='', solved=True, headers=None, subs=None,
+        item=None, exit=True):
     headerUrl = ''
     if headers:
         headerUrl = urlencode(headers)
-    item = xbmcgui.ListItem(path=url + '|' + headerUrl) if item is None else item
+    item = xbmcgui.ListItem(
+        path=f"{url}|{headerUrl}", offscreen=True) if item is None else item
     if subs is not None:
         item.setSubtitles(subs)
-    if ins:
-        item.setProperty('inputstreamaddon', ins)
-        item.setProperty('inputstream', ins)
-        if insdata:
-            for key, value in list(insdata.items()):
-                item.setProperty(ins + '.' + key, value)
     xbmcplugin.setResolvedUrl(HANDLE, solved, item)
     if exit:
-        sys.exit()
+        sys.exit(0)
 
 
 def setContent(ctype='videos'):
@@ -157,7 +157,7 @@ def endScript(message=None, loglevel=2, closedir=True, exit=True):
     if closedir:
         xbmcplugin.endOfDirectory(handle=HANDLE, succeeded=True)
     if exit:
-        sys.exit()
+        sys.exit(0)
 
 
-log('Starting with command "%s"' % sys.argv[2], 1)
+log(f"Starting with command \"{sys.argv[2]}\"", 1)

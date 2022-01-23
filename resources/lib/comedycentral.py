@@ -122,7 +122,7 @@ class CC(object):
 
         if url.startswith('http'):
             return url
-        return f"{BASE_URL}url"
+        return f"{BASE_URL}{url}"
 
     def _createInfoArt(self, image=False, fanart=False):
         """
@@ -279,6 +279,8 @@ class CC(object):
             items = self._extractItems(items)
 
         for item in items:
+            if not item:
+                continue
             if 'loadingTitle' in item:
                 # NEXT PAGE
                 yield {
@@ -377,7 +379,7 @@ class CC(object):
                 }
 
     def loadCollections(self, name, url):
-        """ Collections page are the same as topic pages """
+        """ Collections page are the same as topic pages (for now)"""
         yield from self.loadTopic(name, url)
         pass
 
